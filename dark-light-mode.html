@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dark/Light Mode System</title>
+    <style>
+        /* CSS Custom Properties for Light Theme */
+        :root {
+            /* Light Theme Colors */
+            --primary-bg: #ffffff;
+            --secondary-bg: #f8f9fa;
+            --accent-bg: #e9ecef;
+            --surface-bg: #ffffff;
+            --primary-text: #212529;
+            --secondary-text: #6c757d;
+            --accent-text: #495057;
+            --highlight-color: #007bff;
+            
+            /* Theme indicator */
+            --current-theme: 'light';
+        }
+
+        /* Dark Theme Colors */
+        [data-theme="dark"] {
+            --primary-bg: #1a1a1a;
+            --secondary-bg: #2d2d2d;
+            --accent-bg: #404040;
+            --surface-bg: #252525;
+            --primary-text: #ffffff;
+            --secondary-text: #b3b3b3;
+            --accent-text: #cccccc;
+            --highlight-color: #4dabf7;
+            
+            /* Theme indicator */
+            --current-theme: 'dark';
+        }
+
+        /* Smooth transitions for all elements */
+        * {
+            transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+        }
+
+        /* Base styles using CSS variables */
+        body {
+            background-color: var(--primary-bg);
+            color: var(--primary-text);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        /* Header with toggle button */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background-color: var(--secondary-bg);
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+            border: 1px solid var(--accent-bg);
+        }
+
+        h1 {
+            color: var(--primary-text);
+            margin: 0;
+        }
+
+        /* Theme Toggle Button */
+        .theme-toggle {
+            background-color: var(--highlight-color);
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s ease;
+        }
+
+        .theme-toggle:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .theme-toggle:active {
+            transform: translateY(0);
+        }
+
+        /* Content sections demonstrating all colors */
+        .demo-section {
+            background-color: var(--surface-bg);
+            padding: 25px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            border: 1px solid var(--accent-bg);
+        }
+
+        .color-palette {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .color-item {
+            text-align: center;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid var(--accent-bg);
+        }
+
+        .color-primary-bg { background-color: var(--primary-bg); color: var(--primary-text); }
+        .color-secondary-bg { background-color: var(--secondary-bg); color: var(--primary-text); }
+        .color-accent-bg { background-color: var(--accent-bg); color: var(--primary-text); }
+        .color-surface-bg { background-color: var(--surface-bg); color: var(--primary-text); }
+        .color-primary-text { background-color: var(--primary-text); color: var(--primary-bg); }
+        .color-secondary-text { background-color: var(--secondary-text); color: var(--primary-bg); }
+        .color-accent-text { background-color: var(--accent-text); color: var(--primary-bg); }
+        .color-highlight { background-color: var(--highlight-color); color: white; }
+
+        /* Sample UI elements */
+        .sample-card {
+            background-color: var(--secondary-bg);
+            padding: 20px;
+            border-radius: 8px;
+            margin: 10px 0;
+            border-left: 4px solid var(--highlight-color);
+        }
+
+        .sample-button {
+            background-color: var(--highlight-color);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+
+        .sample-input {
+            background-color: var(--surface-bg);
+            color: var(--primary-text);
+            border: 1px solid var(--accent-bg);
+            padding: 10px;
+            border-radius: 6px;
+            width: 200px;
+            margin-right: 10px;
+        }
+
+        .text-secondary {
+            color: var(--secondary-text);
+        }
+
+        .text-accent {
+            color: var(--accent-text);
+        }
+
+        /* Theme indicator */
+        .theme-indicator {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background-color: var(--highlight-color);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 500;
+            z-index: 1000;
+        }
+
+        /* Responsive design */
+        @media (max-width: 768px) {
+            .header {
+                flex-direction: column;
+                gap: 15px;
+            }
+            
+            .color-palette {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Theme Indicator -->
+    <div class="theme-indicator" id="themeIndicator">
+        🌞 Light Mode
+    </div>
+
+    <div class="container">
+        <!-- Header with Toggle -->
+        <div class="header">
+            <h1>Theme Toggle System</h1>
+            <button class="theme-toggle" id="themeToggle">
+                <span id="themeIcon">🌙</span>
+                <span id="themeText">Dark Mode</span>
+            </button>
+        </div>
+
+        <!-- Color Palette Demo -->
+        <div class="demo-section">
+            <h2>Color Palette</h2>
+            <p class="text-secondary">These are your 8 customizable colors for each theme:</p>
+            
+            <div class="color-palette">
+                <div class="color-item color-primary-bg">
+                    <strong>Primary Background</strong>
+                    <p>--primary-bg</p>
+                </div>
+                <div class="color-item color-secondary-bg">
+                    <strong>Secondary Background</strong>
+                    <p>--secondary-bg</p>
+                </div>
+                <div class="color-item color-accent-bg">
+                    <strong>Accent Background</strong>
+                    <p>--accent-bg</p>
+                </div>
+                <div class="color-item color-surface-bg">
+                    <strong>Surface Background</strong>
+                    <p>--surface-bg</p>
+                </div>
+                <div class="color-item color-primary-text">
+                    <strong>Primary Text</strong>
+                    <p>--primary-text</p>
+                </div>
+                <div class="color-item color-secondary-text">
+                    <strong>Secondary Text</strong>
+                    <p>--secondary-text</p>
+                </div>
+                <div class="color-item color-accent-text">
+                    <strong>Accent Text</strong>
+                    <p>--accent-text</p>
+                </div>
+                <div class="color-item color-highlight">
+                    <strong>Highlight Color</strong>
+                    <p>--highlight-color</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sample UI Elements -->
+        <div class="demo-section">
+            <h2>Sample UI Elements</h2>
+            <p class="text-secondary">See how the theme affects different UI components:</p>
+            
+            <div class="sample-card">
+                <h3>Sample Card</h3>
+                <p>This card demonstrates how content looks with the current theme.</p>
+                <p class="text-accent">This text uses the accent color.</p>
+            </div>
+
+            <div style="margin: 20px 0;">
+                <button class="sample-button">Primary Button</button>
+                <button class="sample-button" style="background-color: var(--secondary-bg); color: var(--primary-text); border: 1px solid var(--accent-bg);">Secondary Button</button>
+            </div>
+
+            <div>
+                <input type="text" class="sample-input" placeholder="Sample input field">
+                <input type="email" class="sample-input" placeholder="Email input">
+            </div>
+        </div>
+
+        <!-- Instructions -->
+        <div class="demo-section">
+            <h2>How to Use This System</h2>
+            <div class="text-secondary">
+                <p><strong>1. Customize Colors:</strong> Edit the CSS custom properties in the :root and [data-theme="dark"] selectors to match your brand colors.</p>
+                <p><strong>2. Apply to Elements:</strong> Use the CSS variables (like var(--primary-bg)) in your styles.</p>
+                <p><strong>3. Toggle Script:</strong> The JavaScript automatically handles theme switching and saves user preference.</p>
+                <p><strong>4. Persistent:</strong> User's theme choice is remembered across sessions using memory storage.</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Theme Toggle System
+        class ThemeManager {
+            constructor() {
+                this.themeToggle = document.getElementById('themeToggle');
+                this.themeIcon = document.getElementById('themeIcon');
+                this.themeText = document.getElementById('themeText');
+                this.themeIndicator = document.getElementById('themeIndicator');
+                this.currentTheme = 'light'; // Default theme, stored in memory
+                
+                this.init();
+            }
+
+            init() {
+                // Set initial theme
+                this.setTheme(this.currentTheme);
+                
+                // Add event listener for toggle button
+                this.themeToggle.addEventListener('click', () => {
+                    this.toggleTheme();
+                });
+
+                // Optional: Listen for system theme changes
+                if (window.matchMedia) {
+                    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+                        // Uncomment the line below if you want to automatically follow system preference
+                        // this.setTheme(e.matches ? 'dark' : 'light');
+                    });
+                }
+            }
+
+            toggleTheme() {
+                const newTheme = this.currentTheme === 'light' ? 'dark' : 'light';
+                this.setTheme(newTheme);
+            }
+
+            setTheme(theme) {
+                this.currentTheme = theme;
+                
+                // Apply theme to document
+                if (theme === 'dark') {
+                    document.documentElement.setAttribute('data-theme', 'dark');
+                    this.themeIcon.textContent = '☀️';
+                    this.themeText.textContent = 'Light Mode';
+                    this.themeIndicator.textContent = '🌙 Dark Mode';
+                } else {
+                    document.documentElement.removeAttribute('data-theme');
+                    this.themeIcon.textContent = '🌙';
+                    this.themeText.textContent = 'Dark Mode';
+                    this.themeIndicator.textContent = '🌞 Light Mode';
+                }
+
+                // Add smooth transition effect
+                document.body.style.transition = 'background-color 0.3s ease';
+                
+                // Dispatch custom event for other scripts to listen to
+                window.dispatchEvent(new CustomEvent('themeChanged', {
+                    detail: { theme: this.currentTheme }
+                }));
+            }
+
+            getCurrentTheme() {
+                return this.currentTheme;
+            }
+
+            // Method to programmatically set theme from other scripts
+            forceTheme(theme) {
+                if (theme === 'light' || theme === 'dark') {
+                    this.setTheme(theme);
+                }
+            }
+        }
+
+        // Initialize theme manager when DOM is loaded
+        document.addEventListener('DOMContentLoaded', () => {
+            window.themeManager = new ThemeManager();
+        });
+
+        // Optional: Expose global functions for easier integration
+        function toggleTheme() {
+            if (window.themeManager) {
+                window.themeManager.toggleTheme();
+            }
+        }
+
+        function setTheme(theme) {
+            if (window.themeManager) {
+                window.themeManager.forceTheme(theme);
+            }
+        }
+
+        function getCurrentTheme() {
+            return window.themeManager ? window.themeManager.getCurrentTheme() : 'light';
+        }
+
+        // Example: Listen for theme changes
+        window.addEventListener('themeChanged', (e) => {
+            console.log('Theme changed to:', e.detail.theme);
+            // You can add custom logic here when theme changes
+        });
+    </script>
+</body>
+</html>
