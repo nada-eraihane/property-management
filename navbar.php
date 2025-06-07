@@ -1,335 +1,250 @@
 <!DOCTYPE html>
 <html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>navbar</title>
 
-<head>
-  <meta charset="UTF-8">
-  <title>PropertyTrack</title>
-  <!-- Include the theme CSS -->
-  <link rel="stylesheet" href="theme-toggle.css">
-</head>
+    <link rel="stylesheet" href="theme-toggle.css" />
+  </head>
 
-<body>
-  <header id="main-header">
-    <div class="container">
-      <!-- Logo - Now the main focal point -->
-      <div class="logo-container">
-        <img src="/property_management/resources/3.png" alt="PropertyTrack" class="logo">
+  <body>
+    <header id="main-header">
+      <div class="container">
+        <!-- Logo - Now the main focal point -->
+        <div class="logo-container">
+          <img
+            src="/property_management/resources/3.png"
+            alt="PropertyTrack"
+            class="logo"
+          />
+        </div>
+
+        <!-- Navigation Links -->
+        <nav id="navMenu" class="nav-links">
+          <a href="home.php">Accueil</a>
+          <a href="contact.php">Contact</a>
+          <a href="about.php">À propos</a>
+          <a href="sales.php">À Vendre</a>
+          <a href="whatsnew.php">Nouveautés</a>
+          <a href="login.php">Connexion</a>
+        </nav>
+
+        <!-- Hamburger button (for small screens) -->
+        <button id="navToggle" class="hamburger-btn">
+          <span class="hamburger-line"></span>
+          <span class="hamburger-line"></span>
+          <span class="hamburger-line"></span>
+        </button>
       </div>
 
-      <!-- Navigation Links -->
-      <nav id="navMenu" class="nav-links">
+      <!-- Mobile Menu -->
+      <div id="mobileMenu" class="mobile-menu">
         <a href="home.php">Accueil</a>
         <a href="contact.php">Contact</a>
         <a href="about.php">À propos</a>
         <a href="sales.php">À Vendre</a>
         <a href="whatsnew.php">Nouveautés</a>
         <a href="login.php">Connexion</a>
-      </nav>
+      </div>
+    </header>
+    <!-- Theme toggle button -->
+    <!-- Theme toggle button -->
+     <!-- Theme toggle button -->
 
-      <!-- Dark/Light Toggle - Compact with icon only -->
-      <button class="theme-toggle" title="Toggle theme">
-        <span data-theme-icon>🌙</span>
-      </button>
-
-      <!-- Hamburger button (for small screens) -->
-      <button id="navToggle" class="hamburger-btn">
-        <span class="hamburger-line"></span>
-        <span class="hamburger-line"></span>
-        <span class="hamburger-line"></span>
-      </button>
-    </div>
-
-    <!-- Mobile Menu -->
-    <div id="mobileMenu" class="mobile-menu">
-      <a href="home.php">Accueil</a>
-      <a href="contact.php">Contact</a>
-      <a href="about.php">À propos</a>
-      <a href="sales.php">À Vendre</a>
-      <a href="whatsnew.php">Nouveautés</a>
-      <a href="login.php">Connexion</a>
-    </div>
-  </header>
-
-  <!-- Include the theme JavaScript -->
-  <script src="theme-toggle.js"></script>
-  <script>
-    const navToggle = document.getElementById('navToggle');
-    const mobileMenu = document.getElementById('mobileMenu');
-
-    navToggle.addEventListener('click', () => {
-      mobileMenu.classList.toggle('show');
-      navToggle.classList.toggle('active');
-    });
-
-    // Close mobile menu when clicking outside
-    document.addEventListener('click', (e) => {
-      if (!navToggle.contains(e.target) && !mobileMenu.contains(e.target)) {
-        mobileMenu.classList.remove('show');
-        navToggle.classList.remove('active');
-      }
-    });
-
-    // Optional: Set initial theme or follow system preference
-    // setTheme('dark'); // Uncomment to start with dark mode
-    followSystemTheme(); 
-  </script>
-
-  <style>
-    /* Base body styles using theme variables */
-    body {
-      margin: 0;
-      font-family: Arial, sans-serif;
-      background-color: var(--primary-bg);
-      color: var(--primary-text);
-      min-height: 100vh;
-    }
-
-    /* Header styles using theme variables */
-    #main-header {
-      background-color: var(--secondary-bg);
-      color: var(--primary-text);
-      padding: 15px 0;
-      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-      position: sticky;
-      top: 0;
-      z-index: 1000;
-    }
-
-    /* Dark mode shadow adjustment */
-    [data-theme="dark"] #main-header {
-      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
-    }
-
-    /* Container */
-    .container {
-      width: 90%;
-      max-width: 1200px;
-      margin: 0 auto;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      flex-wrap: wrap;
-      gap: 20px;
-    }
-
-    /* Logo */
-    .logo-container {
-      flex-shrink: 0;
-    }
-
-    .logo {
-      height: 120px;
-      padding: 10px;
-      object-fit: contain;
-    }
-
-    /* Navigation Links */
-    .nav-links {
-      display: flex;
-      gap: 30px;
-      align-items: center;
-    }
-
-    .nav-links a {
-      text-decoration: none;
-      color: var(--accent-text);
-      font-weight: 500;
-      padding: 10px 15px;
-      border-radius: 8px;
-      transition: all 0.3s ease;
-      position: relative;
-    }
-
-    .nav-links a:hover {
-      color: var(--highlight-color);
-      transform: translateY(-1px);
-      font-weight: 510;
-    }
-
-    .nav-links a:active {
-      transform: translateY(0);
-    }
-
-    /* Enhanced Theme Toggle Button (inherits from theme-toggle.css) */
-    .theme-toggle {
-      background-color: var(--surface-bg);
-      width: 40px;
-      height: 40px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      transition: all 0.3s ease;
-      font-size: 18px;
-      flex-shrink: 0;
-    }
-    .theme-toggle:hover {
-      background-color: var(--accent-bg);
-      transform: scale(1.1) rotate(15deg);
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    }
     
+    
+    <script>
+        
+        const navToggle = document.getElementById('navToggle');
+        const mobileMenu = document.getElementById('mobileMenu');
 
+        navToggle.addEventListener('click', () => {
+            mobileMenu.classList.toggle('show');
+            navToggle.classList.toggle('active');
+        });
 
-    /* Mobile Hamburger Button */
-   .hamburger-btn {
-      background: none;
-      border: none;
-      cursor: pointer;
-      display: none;
-      flex-direction: column;
-      justify-content: space-around;
-      width: 30px;
-      height: 30px;
-      padding: 0;
-      position: relative;
-      z-index: 1001;
-    }
+        // Close mobile menu when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!navToggle.contains(e.target) && !mobileMenu.contains(e.target)) {
+            mobileMenu.classList.remove('show');
+            navToggle.classList.remove('active');
+            }
+        });
 
-    .hamburger-line {
-      width: 100%;
-      height: 3px;
-      background-color: var(--primary-text);
-      border-radius: 2px;
-      transition: all 0.3s ease;
-      transform-origin: center;
-    }
-
-    .hamburger-btn.active .hamburger-line:nth-child(1) {
-      transform: rotate(45deg) translate(6px, 6px);
-    }
-
-    .hamburger-btn.active .hamburger-line:nth-child(2) {
-      opacity: 0;
-    }
-
-    .hamburger-btn.active .hamburger-line:nth-child(3) {
-      transform: rotate(-45deg) translate(6px, -6px);
-    }
-
-    /* Mobile Menu */
-    .mobile-menu {
-      display: none;
-      position: fixed;
-      top: 100%;
-      left: 0;
-      width: 100%;
-      background-color: var(--surface-bg);
-      border-top: 1px solid var(--accent-bg);
-      padding: 20px;
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-      z-index: 999;
-      opacity: 0;
-      transform: translateY(-20px);
-      transition: all 0.3s ease;
-    }
-
-    [data-theme="dark"] .mobile-menu {
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
-    }
-
-    .mobile-menu.show {
-      display: flex;
-      flex-direction: column;
-      opacity: 1;
-      transform: translateY(0);
-    }
-
-    .mobile-menu a {
-      text-decoration: none;
-      color: var(--accent-text);
-      padding: 15px 20px;
-      border-radius: 8px;
-      font-weight: 500;
-      transition: all 0.3s ease;
-      margin: 3px 0;
-      text-align: center;
-      font-size: 18px;
-    }
-
-    .mobile-menu a:hover {
-      color: var(--highlight-color);
-      background-color: var(--accent-bg);
-      transform: translateX(5px);
-    }
-
-    /* Responsive Design */
-    @media (max-width: 992px) {
-      .nav-links {
+    </script>
+    <style>
+      body {
+        margin: 0;
+        font-family: Arial, sans-serif;
+        background-color: var(--primary-bg);
+        color: var(--primary-text);
+        min-height: 100vh;
+      }
+      #main-header {
+        background-color: var(--secondary-bg);
+        color: var(--primary-text);
+        padding: 15px 0;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        position: relative;
+        top: 0;
+        z-index: 1000;
+      }
+      .container {
+        width: 90%;
+        max-width: 1200px;
+        margin: 0 auto;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
         gap: 20px;
       }
-
-      .nav-links a {
-        padding: 8px 12px;
-        font-size: 15px;
+      .logo-container {
+        flex-shrink: 0;
       }
-    }
-
-    @media (max-width: 768px) {
+      .logo {
+        height: 120px;
+        padding: 10px;
+        object-fit: contain;
+      }
       .nav-links {
-        display: none;
-      }
-
-      .hamburger-btn {
         display: flex;
+        gap: 30px;
+        align-items: center;
       }
-
-      .logo {
-        height: 80px;
-      }
-
-      .container {
-        padding: 0 15px;
-      }
-
-      #main-header {
-        padding: 10px 0;
-      }
-    }
-
-    @media (max-width: 480px) {
-      .logo {
-        height: 60px;
-      }
-
-      .theme-toggle {
-        width: 38px;
-        height: 38px;
-        font-size: 16px;
-      }
-
-      .container {
-        width: 95%;
-      }
-    }
-
-
-    /* Smooth transitions for theme changes */
-    * {
-      transition: background-color 0.3s ease, 
-                  color 0.3s ease, 
-                  border-color 0.3s ease,
-                  box-shadow 0.3s ease;
-    }
-
-    /* Ensure mobile menu appears above header */
-    @media (max-width: 768px) {
-      #main-header {
+      .nav-links a {
+        text-decoration: none;
+        color: var(--accent-text);
+        font-weight: 500;
+        padding: 10px 15px;
+        border-radius: 8px;
+        transition: all 0.3s ease;
         position: relative;
       }
-      
-      .mobile-menu {
-        top: calc(100% + 0px);
+
+      .nav-links a:hover {
+        color: var(--highlight-color);
+        transform: translateY(-1px);
+        font-weight: 510;
       }
-    }
+      .hamburger-btn {
+        background: none;
+        border: none;
+        cursor: pointer;
+        display: none;
+        flex-direction: column;
+        justify-content: space-around;
+        width: 30px;
+        height: 30px;
+        padding: 0;
+        position: relative;
+        z-index: 1001;
+      }
 
-    /* Add some breathing room */
-    .container {
-      min-height: 70px;
-    }
+      .hamburger-line {
+        width: 100%;
+        height: 3px;
+        background-color: var(--primary-text);
+        border-radius: 2px;
+        transition: all 0.3s ease;
+        transform-origin: center;
+      }
+      .hamburger-btn.active .hamburger-line:nth-child(1) {
+        transform: rotate(45deg) translate(6px, 6px);
+      }
 
-  </style>
+      .hamburger-btn.active .hamburger-line:nth-child(2) {
+        opacity: 0;
+      }
 
-</body>
+      .hamburger-btn.active .hamburger-line:nth-child(3) {
+        transform: rotate(-45deg) translate(6px, -6px);
+      }
 
+      /* Mobile Menu */
+      .mobile-menu {
+        display: none;
+        position: absolute;
+        top: 100%;
+        left: 0;
+        width: 100%;
+        background-color: var(--surface-bg);
+        border-top: 1px solid var(--accent-bg);
+        padding: 20px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+        z-index: 999;
+        opacity: 0;
+        transform: translateY(-20px);
+        transition: all 0.3s ease;
+      }
+      .mobile-menu.show {
+        display: flex;
+        flex-direction: column;
+        opacity: 1;
+        transform: translateY(0);
+      }
+
+      .mobile-menu a {
+        text-decoration: none;
+        color: var(--accent-text);
+        padding: 15px 20px;
+        border-radius: 8px;
+        font-weight: 500;
+        transition: all 0.3s ease;
+        margin: 3px 0;
+        text-align: center;
+        font-size: 18px;
+      }
+
+      .mobile-menu a:hover {
+        color: var(--highlight-color);
+        background-color: var(--accent-bg);
+        transform: translateX(5px);
+      }
+      /* Responsive Design */
+      @media (max-width: 992px) {
+        .nav-links {
+          gap: 20px;
+        }
+
+        .nav-links a {
+          padding: 8px 12px;
+          font-size: 15px;
+        }
+      }
+
+      @media (max-width: 768px) {
+        .nav-links {
+          display: none;
+        }
+
+        .hamburger-btn {
+          display: flex;
+        }
+
+        .logo {
+          height: 80px;
+        }
+
+        .container {
+          padding: 0 15px;
+          min-height: 70px;
+        }
+        #main-header {
+          position: relative;
+          padding: 10px 0;
+        }
+
+        .mobile-menu {
+          top: calc(100% + 0px);
+        }
+      }
+
+      @media (max-width: 480px) {
+        .logo {
+          height: 60px;
+        }
+      }
+    </style>
+  </body>
 </html>

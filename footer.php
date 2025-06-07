@@ -63,16 +63,9 @@
     </div>
   </footer>
 
-  <!-- Bouton pour changer de mode -->
-  <div class="text-center my-4">
-    <button onclick="toggleDarkMode()" class="bg-gray-300 dark:bg-gray-700 text-sm px-4 py-2 rounded hover:bg-gray-400 dark:hover:bg-gray-600">
-      Basculer mode clair/sombre
-    </button>
-  </div>
-
-  <!-- Font Awesome pour les icônes -->
   
 
+  
   <!-- Script pour l'année dynamique et le mode sombre -->
   <script>
     document.getElementById('year').textContent = new Date().getFullYear();
