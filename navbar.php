@@ -168,9 +168,7 @@
       transform: scale(1.1) rotate(15deg);
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
     }
-    .theme-toggle:active {
-      transform: scale(0.95);
-    }
+    
 
 
     /* Mobile Hamburger Button */
