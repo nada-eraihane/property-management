@@ -11,6 +11,8 @@
     --secondary-text: #1b2639;
     --accent-text: #567c8d;
     --highlight-color: #a21414;
+    --footer-bg-color: #1b2639;
+    --footer-txt-color: #ffffff;
 
     /* Theme metadata */
     --current-theme: 'light';
@@ -26,6 +28,8 @@
     --secondary-text: #fff7ea;
     --accent-text: #c8d9e6;
     --highlight-color: #a21414;
+    --footer-bg-color: #1b2639;
+    --footer-txt-color: #ffffff;
 
     /* Theme metadata */
     --current-theme: 'dark';
