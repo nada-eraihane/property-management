@@ -1,3 +1,8 @@
+<!-- error handling for wrong credential -->
+<!-- add user login page -->
+<!-- the loading second looks like it has an error -->
+
+
 <?php
 session_start();
 require_once 'db.php'; // DB connection
@@ -5,9 +10,7 @@ $mysqli = $conn;       // for use below
 
 // Hardcoded logins for now
 $hardcoded = [
-    'admin' => 'admin123',
-    'superadmin' => 'super2024!',
-    'gestionnaire' => 'gestion456'
+    'admin' => 'password',
 ];
 
 $error = '';
