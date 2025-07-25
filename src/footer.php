@@ -143,11 +143,12 @@
       <div class="footer-section">
         <h3>Liens rapides</h3>
         <ul class="footer-links">
-          <li><a href="/">Accueil</a></li>
-          <li><a href="/properties">Propriétés</a></li>
-          <li><a href="/about">À propos</a></li>
-          <li><a href="/contact">Contact</a></li>
-          <li><a href="/faq">FAQs</a></li>
+          <li><a href="home.php">Accueil</a></li>
+          <li><a href="properties.php">Propriétés</a></li>
+          <li><a href="about.php">À propos</a></li>
+          <li><a href="contact.php">Contact</a></li>
+          <li><a href="faq.php">FAQs</a></li>
+          <li><a href="login_select.php">Connexion</a></li>
         </ul>
       </div>
 

@@ -26,7 +26,7 @@
           <a href="about.php">À propos</a>
           <a href="sales.php">À Vendre</a>
           <a href="whatsnew.php">Nouveautés</a>
-          <a href="login.php">Connexion</a>
+          <a href="login_select.php">Connexion</a>
         </nav>
 
         <!-- Hamburger button (for small screens) -->

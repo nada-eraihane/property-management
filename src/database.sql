@@ -1,8 +1,15 @@
 
 create database property_management;
 use property_management;
+
+-- 0. ROLES Table
+CREATE TABLE roles (
+    role_id INT PRIMARY KEY AUTO_INCREMENT,
+    role_name VARCHAR(50) UNIQUE NOT NULL
+);
+
 -- 1. USERS Table
-create Table users (
+CREATE TABLE users (
     user_id INT PRIMARY KEY AUTO_INCREMENT,
     username VARCHAR(50) UNIQUE NOT NULL,
     email VARCHAR(100) UNIQUE NOT NULL,
@@ -14,8 +21,10 @@ create Table users (
     status ENUM('active', 'inactive', 'suspended') DEFAULT 'active',
     created_by INT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (role_id) REFERENCES roles(role_id),
     FOREIGN KEY (created_by) REFERENCES users(user_id)
 );
+
 
 -- 2. PROPERTIES Table
 create Table properties (
@@ -125,3 +134,4 @@ create Table user_requests (
     FOREIGN KEY (user_id) REFERENCES users(user_id),
     FOREIGN KEY (property_id) REFERENCES properties(property_id)
 );
+
