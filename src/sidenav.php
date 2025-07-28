@@ -1,389 +1,242 @@
-<!DOCTYPE html>
-<html lang="en">
+<div id="sidebar-toggle">☰</div>
+<link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+<!-- <link rel="stylesheet" href="admin-dashboard.css"> -->
 
-<head>
-  <meta charset="UTF-8">
-  <title>PropertyTrack</title>
-</head>
 
-<body>
-  <header id="main-header">
-    <div class="container">
-      <!-- Logo - Now the main focal point -->
-      <div class="logo-container">
-        <img src="/property_management/resources/3.png" alt="PropertyTrack" class="logo">
-      </div>
+<!-- <button id="theme-toggle" class="theme-toggle">Switch to Light Mode</button> -->
 
-      <!-- Navigation Links -->
-      <nav id="navMenu" class="nav-links">
-        <a href="home.php">Accueil</a>
-        <a href="contact.php">Contact</a>
-        <a href="about.php">À propos</a>
-        <a href="sales.php">À Vendre</a>
-        <a href="whatsnew.php">Nouveautés</a>
-        <a href="login.php">Connexion</a>
-      </nav>
+<div class="sidebar" id="sidebar">
+    <h5>Mind & Motion</h5>
+    <div class="sidebar-links">
+        <ul>
+            <li><a href="admin-dashboard.php">Dashboard</a></li>
+            
+            <div class="dropdown">
+                <button onclick="toggleSubMenu(this)" class="drop-btn"> Product Management <span class="material-icons">keyboard_arrow_down</span></button>
+                <ul class="sub-menu">
+                        <li><a href="admin_prod_add.php">Add Product</a></li>
+                        <li><a href="admin_prod_edit.php">Edit Product</a></li>
+                        <li><a href="admin_prod_remove.php">Remove Product</a></li>
+                </ul>
 
-      <!-- Dark/Light Toggle - Compact with icon only -->
-      <button class="theme-toggle" title="Toggle theme" id="themeToggle">
-        <span id="themeIcon">🌙</span>
-      </button>
+            </div>
 
-      <!-- Hamburger button (for small screens) -->
-      <button id="navToggle" class="hamburger-btn">
-        <span class="hamburger-line"></span>
-        <span class="hamburger-line"></span>
-        <span class="hamburger-line"></span>
-      </button>
+            <li><a href="admin_stock.php">Stock Management</a></li>
+            <li><a href="ordermanagement.php">Order Management</a></li>
+            <li><a href="customermanagement.php">Customer Management</a></li>
+            <li><a href="ContactUsFetch.php">Messages and Support</a></li>
+            <li><a href="#">Settings</a></li>
+        </ul>
     </div>
 
-    <!-- Mobile Menu -->
-    <div id="mobileMenu" class="mobile-menu">
-      <a href="home.php">Accueil</a>
-      <a href="contact.php">Contact</a>
-      <a href="about.php">À propos</a>
-      <a href="sales.php">À Vendre</a>
-      <a href="whatsnew.php">Nouveautés</a>
-      <a href="login.php">Connexion</a>
+    <div class="sidebar-bottom">
+
+		<button  class="sidebar-btn" style="border:none; cursor:pointer; " > <span class="material-icons"> wb_sunny </span> <p id="theme-toggle"> Switch to Light Mode </p> </button>
+
+        <a href="index.php" class="sidebar-btn"> <span class="material-icons">home</span>Index</a>
+            
+        <a href="adminlogout.php" class="sidebar-btn">
+           	<span class="material-icons">logout</span> Logout</a>
+
     </div>
-  </header>
 
-  <script>
-    // Theme Toggle Functionality
-    const themeToggle = document.getElementById('themeToggle');
-    const themeIcon = document.getElementById('themeIcon');
-    const body = document.body;
+</div>
 
-    // Check for saved theme preference or default to light mode
-    const savedTheme = localStorage.getItem('theme') || 'light';
-    setTheme(savedTheme);
+<script>
+    function toggleSubMenu(button) {
+        let subMenu = button.nextElementSibling;
+        subMenu.classList.toggle("show");
+        button.classList.toggle("rotate");
+    }    
 
-    themeToggle.addEventListener('click', () => {
-      const currentTheme = body.getAttribute('data-theme');
-      const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-      setTheme(newTheme);
-      localStorage.setItem('theme', newTheme);
+    document.addEventListener("DOMContentLoaded", function () {
+        const sidebar = document.getElementById("sidebar");
+        const sidebarToggle = document.getElementById("sidebar-toggle");
+
+        if (sidebarToggle) {
+            sidebarToggle.addEventListener("click", function () {
+                if (sidebar.classList.contains("open")) {
+                    sidebar.classList.remove("open");
+                    sidebarToggle.innerHTML = "☰";
+                    document.body.classList.remove("shifted");
+                    sidebarToggle.style.left = "10px";
+                } else {
+                    sidebar.classList.add("open");
+                    sidebarToggle.innerHTML = "✖";
+                    document.body.classList.add("shifted");
+                    sidebarToggle.style.left = "260px";
+                }
+            });
+        }
+
+        
+        const themeToggle = document.getElementById("theme-toggle");
+        const currentTheme = localStorage.getItem("theme") || "dark";
+
+        document.documentElement.setAttribute("data-theme", currentTheme);
+        themeToggle.textContent = currentTheme === "dark" ? "Light Mode" : "Dark Mode";
+
+        themeToggle.addEventListener("click", () => {
+            let theme = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
+            document.documentElement.setAttribute("data-theme", theme);
+            localStorage.setItem("theme", theme);
+            themeToggle.textContent = theme === "dark" ? "Light Mode" : "Dark Mode";
+         });
     });
+</script>
 
-    function setTheme(theme) {
-      body.setAttribute('data-theme', theme);
-      themeIcon.textContent = theme === 'dark' ? '☀️' : '🌙';
+
+<style>
+    *{
+        margin: 0;
+        padding:0;
+        box-sizing:  border-box;
+        list-style:none;
+        text-decoration:none;
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+		font-size: 18px;
+    }
+    body{
+        
+        transition: margin-left 0.3s ease;
+    }
+    #sidebar-toggle {
+        position: fixed;
+        top: 10px;
+        left: 10px;
+        z-index: 9999;
+        background: #1B263B;
+        color: white;
+        border: none;
+        padding: 10px 15px;
+        cursor: pointer;
+        font-size: 18px;
+        border-radius: 5px;
+        transition: left 0.3s ease;
+
     }
 
-    // Mobile Menu Functionality
-    const navToggle = document.getElementById('navToggle');
-    const mobileMenu = document.getElementById('mobileMenu');
-
-    navToggle.addEventListener('click', () => {
-      mobileMenu.classList.toggle('show');
-      navToggle.classList.toggle('active');
-    });
-
-    // Close mobile menu when clicking outside
-    document.addEventListener('click', (e) => {
-      if (!navToggle.contains(e.target) && !mobileMenu.contains(e.target)) {
-        mobileMenu.classList.remove('show');
-        navToggle.classList.remove('active');
-      }
-    });
-  </script>
-
-  <style>
-    /* CSS Custom Properties for Theme Variables */
-    :root {
-      /* Light theme colors */
-      --primary-bg: #ffffff;
-      --secondary-bg: #f8f9fa;
-      --surface-bg: #ffffff;
-      --accent-bg: #e9ecef;
-      --primary-text: #212529;
-      --accent-text: #495057;
-      --highlight-color: #007bff;
-    }
-
-    [data-theme="dark"] {
-      /* Dark theme colors */
-      --primary-bg: #1a1a1a;
-      --secondary-bg: #2d2d2d;
-      --surface-bg: #333333;
-      --accent-bg: #404040;
-      --primary-text: #ffffff;
-      --accent-text: #e0e0e0;
-      --highlight-color: #4dabf7;
-    }
-
-    /* Base body styles using theme variables */
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-
-    body {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background-color: var(--primary-bg);
-      color: var(--primary-text);
-      min-height: 100vh;
-      transition: background-color 0.3s ease, color 0.3s ease;
-    }
-
-    /* Header styles using theme variables */
-    #main-header {
-      background-color: var(--secondary-bg);
-      color: var(--primary-text);
-      padding: 15px 0;
-      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-      position: sticky;
-      top: 0;
-      z-index: 1000;
-      transition: all 0.3s ease;
-    }
-
-    /* Dark mode shadow adjustment */
-    [data-theme="dark"] #main-header {
-      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
-    }
-
-    /* Container */
-    .container {
-      width: 90%;
-      max-width: 1200px;
-      margin: 0 auto;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      position: relative;
-      min-height: 70px;
-    }
-
-    /* Logo - Made the focal point */
-    .logo-container {
-      flex-shrink: 0;
-      z-index: 10;
-    }
-
-    .logo {
-      height: 120px;
-      padding: 10px;
-      object-fit: contain;
-      transition: transform 0.3s ease, filter 0.3s ease;
-    }
-
-    .logo:hover {
-      transform: scale(1.05);
-      filter: brightness(1.1);
-    }
-
-    /* Navigation Links - Centered */
-    .nav-links {
-      display: flex;
-      gap: 30px;
-      align-items: center;
-      position: absolute;
-      left: 50%;
-      transform: translateX(-50%);
-    }
-
-    .nav-links a {
-      text-decoration: none;
-      color: var(--accent-text);
-      font-weight: 500;
-      padding: 10px 15px;
-      border-radius: 8px;
-      transition: all 0.3s ease;
-      position: relative;
-      font-size: 16px;
-    }
-
-    .nav-links a:hover {
-      color: var(--highlight-color);
-      background-color: var(--accent-bg);
-      transform: translateY(-2px);
-    }
-
-    .nav-links a:active {
-      transform: translateY(0);
-    }
-
-    /* Compact Theme Toggle Button */
-    .theme-toggle {
-      background-color: var(--surface-bg);
-      border: 2px solid var(--accent-bg);
-      border-radius: 50%;
-      width: 44px;
-      height: 44px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      transition: all 0.3s ease;
-      font-size: 18px;
-      flex-shrink: 0;
-    }
-
-    .theme-toggle:hover {
-      background-color: var(--accent-bg);
-      transform: scale(1.1) rotate(15deg);
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    }
-
-    .theme-toggle:active {
-      transform: scale(0.95);
-    }
-
-    /* Enhanced Hamburger Button */
-    .hamburger-btn {
-      background: none;
-      border: none;
-      cursor: pointer;
-      display: none;
-      flex-direction: column;
-      justify-content: space-around;
-      width: 30px;
-      height: 30px;
-      padding: 0;
-      position: relative;
-      z-index: 1001;
-    }
-
-    .hamburger-line {
-      width: 100%;
-      height: 3px;
-      background-color: var(--primary-text);
-      border-radius: 2px;
-      transition: all 0.3s ease;
-      transform-origin: center;
-    }
-
-    .hamburger-btn.active .hamburger-line:nth-child(1) {
-      transform: rotate(45deg) translate(6px, 6px);
-    }
-
-    .hamburger-btn.active .hamburger-line:nth-child(2) {
-      opacity: 0;
-    }
-
-    .hamburger-btn.active .hamburger-line:nth-child(3) {
-      transform: rotate(-45deg) translate(6px, -6px);
-    }
-
-    /* Mobile Menu */
-    .mobile-menu {
-      display: none;
-      position: fixed;
-      top: 100%;
-      left: 0;
-      width: 100%;
-      background-color: var(--surface-bg);
-      border-top: 1px solid var(--accent-bg);
-      padding: 20px;
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-      z-index: 999;
-      opacity: 0;
-      transform: translateY(-20px);
-      transition: all 0.3s ease;
-    }
-
-    [data-theme="dark"] .mobile-menu {
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
-    }
-
-    .mobile-menu.show {
-      display: flex;
-      flex-direction: column;
-      opacity: 1;
-      transform: translateY(0);
-    }
-
-    .mobile-menu a {
-      text-decoration: none;
-      color: var(--accent-text);
-      padding: 15px 20px;
-      border-radius: 8px;
-      font-weight: 500;
-      transition: all 0.3s ease;
-      margin: 3px 0;
-      text-align: center;
-      font-size: 18px;
-    }
-
-    .mobile-menu a:hover {
-      color: var(--highlight-color);
-      background-color: var(--accent-bg);
-      transform: translateX(5px);
-    }
-
-    /* Responsive Design */
-    @media (max-width: 992px) {
-      .nav-links {
-        gap: 20px;
-      }
-
-      .nav-links a {
-        padding: 8px 12px;
-        font-size: 15px;
-      }
-    }
-
-    @media (max-width: 768px) {
-      .nav-links {
-        display: none;
-      }
-
-      .hamburger-btn {
+    .sidebar {
+        position: fixed;
+        left: -250px;
+        top: 0;
+        width: 250px;
+        height: 100vh;
+        background: #1B263B;
+        padding-top: 20px;
+        transition: left 0.3s ease;
         display: flex;
-      }
+        flex-direction: column;
+        z-index: 9998;
+    }
+    .sidebar.open {
+        left:0;
+    }
+    body.shifted {
+        margin-left: 250px;
+    }
+    
+    .sidebar h5{
+        color: #E0E1DD;
+        text-transform: uppercase;
+        text-align: center;
+        margin-bottom: 20px;
+    	font-size: 20px;
+    	font-weight: bold;
+    }
+    .sidebar-links {
+        flex: 1;
+        overflow-y: auto;
+        padding-bottom: 10px;
+    }
+    .sidebar ul li{
+        padding: 15px;
+        color: #E0E1DD;
+        cursor: pointer;
+    }
+	.sidebar ul li a{
+        color: #E0E1DD;
+        cursor: pointer;
+    }
+    .sidebar ul li:hover{
+        background: #0D1B2A;
+        color: #fff;
+    	font-weight: bolder;
 
-      .logo {
-        height: 80px;
-      }
-
-      .container {
-        padding: 0 15px;
-      }
-
-      #main-header {
-        padding: 10px 0;
-      }
-
-      .mobile-menu {
-        top: calc(100% + 0px);
-      }
+    }
+    .drop-btn {
+        display: flex;
+    	align-items:center;
+    	background:#1B263B;
+    	width: 100%;
+   		color: #E0E1DD;
+        cursor: pointer;
+    	border: none;
+    	font:inherit;
+    	text-align: left;
+    	justify-content: space-between;
+    	margin:0;
+    	padding:15px;
+    }
+	.drop-btn:hover {
+    	background:#0d1b2a;
+    }
+	.sub-menu{
+        max-height:0;
+    	overflow: hidden;
+    	transition: max-height 300ms ease-in-out;
+    	background: #1b263b;
+    }
+	.sub-menu.show {
+    	max-height: 200px;
+    }
+	.sub-menu li{
+    	padding: 10px 15px;
+    	display:block;
+    }
+	.sub-menu li:hover {
+        background: #0d1b2a;
+        cursor: pointer;
+    }
+	.sub-menu > div {
+    	overflow:hidden;
+    }
+    .sub-menu a{
+    	padding-left: 0;
     }
 
-    @media (max-width: 480px) {
-      .logo {
-        height: 60px;
-      }
-
-      .theme-toggle {
-        width: 38px;
-        height: 38px;
+	.rotate .material-icons {
+    	transform: rotate(180deg);
+    	transition: transform 200ms ease-in-out;
+    }
+    .sidebar-bottom {
+    	width:100%;
+        padding: 15px;
+        background: #1B263B;
+        display: flex;
+        flex-direction: column;
+        border: none;
+    }
+    .sidebar-btn {
+        display:flex;
+        align-items: center;
+        padding: 10px;
+        color: #E0E1DD;
+        background: #415A77;
+        border-radius: 5px;
+        text-align: center;
+        margin-bottom: 10px;
         font-size: 16px;
-      }
+    	justify-content: space-evenly;
 
-      .container {
-        width: 95%;
-      }
     }
-
-    /* Focus states for accessibility */
-    .nav-links a:focus,
-    .mobile-menu a:focus,
-    .hamburger-btn:focus,
-    .theme-toggle:focus {
-      outline: 2px solid var(--highlight-color);
-      outline-offset: 2px;
+    .sidebar-btn .icon {
+        margin-right: 10px;
     }
-
-    /* Smooth transitions for theme changes */
-    * {
-      transition: background-color 0.3s ease, 
-                  color 0.3s ease, 
-                  border-color 0.3s ease,
-                  box-shadow 0.3s ease;
+    .sidebar-btn:hover {
+        background: #778DA9;
     }
-  </style>
-</body>
-
-</html>
+    .sidebar-bottom .sidebar-btn:last-child {
+        margin-bottom: 0;
+    }
+</style>

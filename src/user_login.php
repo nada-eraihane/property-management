@@ -5,7 +5,7 @@ $mysqli = $conn;       // for use below
 
 // Hardcoded logins for now
 $hardcoded = [
-    'admin' => 'password',
+    'user' => 'password',
 ];
 
 $error = '';
@@ -73,7 +73,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Connexion Administrateur</title>
+    <title>Connexion Utilisateur</title>
    <style>
         /* Theme CSS Custom Properties for Light Theme */
         :root {
@@ -280,7 +280,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     <div class="login-container" id="loginContainer">
         <div class="login-header">
-            <h1>Connexion Administrateur</h1>
+            <h1>Connexion Utilisateur</h1>
             <p>Veuillez saisir vos identifiants</p>
         </div>
 

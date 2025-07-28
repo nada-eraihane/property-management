@@ -256,16 +256,17 @@
         </div>
 
         <div class="button-container">
-            <!-- Admin login button -->
-            <a href="admin_login.php" class="login-button admin-button" onclick="goToAdminLogin()">
-                <span class="button-icon">🔐</span>
-                <span>Connexion Administrateur</span>
-            </a>
+            
 
             <!-- User login button -->
             <a href="user_login.php" class="login-button user-button" onclick="goToUserLogin()">
                 <span class="button-icon">👤</span>
                 <span>Connexion Utilisateur</span>
+            </a>
+            <!-- Admin login button -->
+            <a href="admin_login.php" class="login-button admin-button" onclick="goToAdminLogin()">
+                <span class="button-icon">🔐</span>
+                <span>Connexion Administrateur</span>
             </a>
         </div>
     </main>
