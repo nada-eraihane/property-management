@@ -43,7 +43,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $stmt->bind_result($hash, $role);
                         $stmt->fetch();
                         if (password_verify($password, $hash)
-                            && ($role === 'Admin' || $role === 'Super Admin')) {
+                            && ($role === 'Customer' )) {
                             $_SESSION['username'] = $username;
                             $_SESSION['source'] = 'database';
                             $_SESSION['role'] = $role;
@@ -255,6 +255,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             border-top: 4px solid var(--highlight-color);
             border-radius: 50%;
             animation: spin 1s linear infinite;
+            justify-content: center;
+            align-items: center;
         }
 
         @keyframes spin {
