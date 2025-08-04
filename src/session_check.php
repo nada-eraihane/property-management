@@ -61,9 +61,9 @@ function check_admin_session($redirect_to_login = true) {
 }
 
 /**
- * Get current user info
+ * Get current admin user info
  */
-function get_current_user() {
+function get_current_admin_user() {
     if (!check_admin_session(false)) {
         return null;
     }
@@ -78,8 +78,8 @@ function get_current_user() {
 /**
  * Generate logout button HTML
  */
-function get_logout_button($classes = 'logout-btn', $text = 'Se déconnecter') {
-    $user = get_current_user();
+function get_admin_logout_button($classes = 'logout-btn', $text = 'Se déconnecter') {
+    $user = get_current_admin_user();
     $username = $user ? htmlspecialchars($user['username']) : 'Utilisateur';
     
     return '
