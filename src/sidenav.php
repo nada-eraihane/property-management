@@ -319,7 +319,8 @@
 
         /* Dropdown button hover effect */
         .drop-btn:hover {
-            background: var(--secondary-text);
+            color:var(--highlight-color);
+            font-size: bolder;
         }
 
         /* Submenu container */
