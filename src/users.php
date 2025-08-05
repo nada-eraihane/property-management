@@ -439,7 +439,7 @@ while ($user = $users_result->fetch_assoc()) {
                 </p>
             </div>
             <div class="header-actions">
-                <a href="add_user.php" class="btn btn-primary">
+                <a href="users_create.php" class="btn btn-primary">
                     + Ajouter un utilisateur
                 </a>
             </div>
