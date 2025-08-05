@@ -77,6 +77,7 @@
                     </button>
                     <ul class="sub-menu">
                         <li><a href="users_create.php">Créer utilisateur</a></li>
+                        <li><a href="users.php">Liste d'utilisateur</a></li>
                         <li><a href="users_edit.php">Modifier utilisateur</a></li>
                         <li><a href="users_delete.php">Supprimer utilisateur</a></li>
                     </ul>
@@ -333,7 +334,7 @@
 
         /* Submenu open state */
         .sub-menu.show {
-            max-height: 200px;
+            max-height: 250px;
         }
 
         /* Submenu items */
