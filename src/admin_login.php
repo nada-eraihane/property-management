@@ -1,3 +1,7 @@
+<!-- to do:
+make sure if person is set to inactif they should be denied access to the admin side -->
+
+
 <?php
 session_start();
 require_once 'db.php'; // DB connection

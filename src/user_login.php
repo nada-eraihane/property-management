@@ -1,3 +1,12 @@
+<!-- to do:
+make sure that when the login they are redirected to the customer dashboard
+make sure to start a session for customers
+make sure if the profile is set to inactif they should be denied access
+make sure that it checks if they are customers 
+add a stop session page
+logout and end session -->
+
+
 <?php
 session_start();
 require_once 'db.php'; // DB connection
