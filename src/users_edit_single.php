@@ -8,6 +8,7 @@ $mysqli = $conn;
 
 // Check if user is logged in and is admin
 if (!isset($_SESSION['username'])) {
+    ob_clean();
     header('Location: login.php');
     exit;
 }
@@ -21,22 +22,17 @@ if ($mysqli->connect_error) {
     die('Database connection failed: ' . $mysqli->connect_error);
 }
 
-$stmt = $mysqli->prepare("
-    SELECT u.user_id, r.role_name 
-    FROM users u 
-    JOIN roles r ON u.role_id = r.role_id 
-    WHERE u.username = ?
-");
-$stmt->bind_param('s', $current_username);
-$stmt->execute();
-$result = $stmt->get_result();
+// Simple query to get current user info
+$user_query = "SELECT u.user_id, r.role_name FROM users u JOIN roles r ON u.role_id = r.role_id WHERE u.username = '" . $mysqli->real_escape_string($current_username) . "'";
+$result = $mysqli->query($user_query);
 
-if ($result->num_rows === 1) {
+if ($result && $result->num_rows === 1) {
     $row = $result->fetch_assoc();
     $current_user_role = $row['role_name'];
     $current_user_id = $row['user_id'];
+} else {
+    die('User not found.');
 }
-$stmt->close();
 
 // Check authorization
 if (!in_array($current_user_role, ['Admin', 'Super Admin'])) {
@@ -50,28 +46,22 @@ if (!$user_id) {
     exit;
 }
 
-// Get user details and check permissions
-$user_query = "
-    SELECT u.user_id, u.username, u.email, u.first_name, u.last_name, u.phone, 
-           u.status, u.created_at, r.role_id, r.role_name,
-           creator.username as created_by_username
-    FROM users u 
-    JOIN roles r ON u.role_id = r.role_id 
-    LEFT JOIN users creator ON u.created_by = creator.user_id
-    WHERE u.user_id = ?
-";
+// Get user details - simple query
+$user_query = "SELECT u.user_id, u.username, u.email, u.first_name, u.last_name, u.phone, 
+               u.status, u.created_at, r.role_id, r.role_name,
+               creator.username as created_by_username
+               FROM users u 
+               JOIN roles r ON u.role_id = r.role_id 
+               LEFT JOIN users creator ON u.created_by = creator.user_id
+               WHERE u.user_id = " . $user_id;
 
-$stmt = $mysqli->prepare($user_query);
-$stmt->bind_param('i', $user_id);
-$stmt->execute();
-$result = $stmt->get_result();
+$result = $mysqli->query($user_query);
 
-if ($result->num_rows === 0) {
+if (!$result || $result->num_rows === 0) {
     die('User not found.');
 }
 
 $user = $result->fetch_assoc();
-$stmt->close();
 
 // Check if current user can edit this user
 $can_edit = false;
@@ -119,14 +109,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $confirm_new_password = $_POST['confirm_new_password'] ?? '';
     $admin_password = $_POST['admin_password'] ?? '';
 
-    // Debug: Log the received values
-    error_log("POST data received - username: '{$username}', email: '{$email}', role_id: {$role_id}, change_password: " . ($change_password ? 'true' : 'false'));
-
-    // Ensure phone is properly handled (can be empty string)
-    if (empty($phone)) {
-        $phone = null;
-    }
-
     // Basic validation
     if (!$username || !$email || !$first_name || !$last_name || !$role_id) {
         $error = 'Tous les champs obligatoires doivent être remplis.';
@@ -150,14 +132,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $error = 'Vous n\'êtes pas autorisé à assigner ce rôle.';
         } else {
             // Check if username or email already exists for other users
-            $check_stmt = $mysqli->prepare("SELECT COUNT(*) FROM users WHERE (username = ? OR email = ?) AND user_id != ?");
-            $check_stmt->bind_param('ssi', $username, $email, $user_id);
-            $check_stmt->execute();
-            $check_stmt->bind_result($count);
-            $check_stmt->fetch();
-            $check_stmt->close();
+            $check_query = "SELECT COUNT(*) as count FROM users WHERE (username = '" . $mysqli->real_escape_string($username) . "' OR email = '" . $mysqli->real_escape_string($email) . "') AND user_id != " . $user_id;
+            $check_result = $mysqli->query($check_query);
+            $check_row = $check_result->fetch_assoc();
 
-            if ($count > 0) {
+            if ($check_row['count'] > 0) {
                 $error = 'Ce nom d\'utilisateur ou cette adresse email est déjà utilisé par un autre utilisateur.';
             } else {
                 // Password change validation
@@ -172,54 +151,71 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $error = 'Le nouveau mot de passe doit contenir au moins une majuscule, une minuscule et un chiffre.';
                     } else {
                         // Verify admin password
-                        $admin_stmt = $mysqli->prepare("SELECT password_hash FROM users WHERE user_id = ?");
-                        $admin_stmt->bind_param('i', $current_user_id);
-                        $admin_stmt->execute();
-                        $admin_stmt->bind_result($admin_hash);
-                        $admin_stmt->fetch();
-                        $admin_stmt->close();
+                        $admin_query = "SELECT password_hash FROM users WHERE user_id = " . $current_user_id;
+                        $admin_result = $mysqli->query($admin_query);
+                        $admin_row = $admin_result->fetch_assoc();
 
-                        if (!password_verify($admin_password, $admin_hash)) {
+                        if (!password_verify($admin_password, $admin_row['password_hash'])) {
                             $error = 'Mot de passe administrateur incorrect.';
                         }
                     }
                 }
 
                 if (!$error) {
-                    // Update user information
+                    // Build and execute update query
+                    $role_id = (int)$role_id;
+                    $user_id = (int)$user_id;
+                    
+                    // Escape all string values for safety
+                    $username_escaped = $mysqli->real_escape_string($username);
+                    $email_escaped = $mysqli->real_escape_string($email);
+                    $first_name_escaped = $mysqli->real_escape_string($first_name);
+                    $last_name_escaped = $mysqli->real_escape_string($last_name);
+                    $status_escaped = $mysqli->real_escape_string($status);
+                    
+                    // Handle phone field
+                    if (empty($phone)) {
+                        $phone_sql = "NULL";
+                    } else {
+                        $phone_sql = "'" . $mysqli->real_escape_string($phone) . "'";
+                    }
+                    
                     if ($change_password) {
                         // Update with password change
                         $password_hash = password_hash($new_password, PASSWORD_DEFAULT);
-                        $update_stmt = $mysqli->prepare("
-                            UPDATE users 
-                            SET username = ?, email = ?, first_name = ?, last_name = ?, phone = ?, 
-                                role_id = ?, status = ?, password_hash = ?
-                            WHERE user_id = ?
-                        ");
+                        $password_hash_escaped = $mysqli->real_escape_string($password_hash);
+                        
+                        $sql = "UPDATE users SET 
+                                username = '$username_escaped',
+                                email = '$email_escaped',
+                                first_name = '$first_name_escaped',
+                                last_name = '$last_name_escaped',
+                                phone = $phone_sql,
+                                role_id = $role_id,
+                                status = '$status_escaped',
+                                password_hash = '$password_hash_escaped'
+                                WHERE user_id = $user_id";
                     } else {
                         // Update without password change
-                        $update_stmt = $mysqli->prepare("
-                            UPDATE users 
-                            SET username = ?, email = ?, first_name = ?, last_name = ?, phone = ?, 
-                                role_id = ?, status = ?
-                            WHERE user_id = ?
-                        ");
-                        $update_stmt->bind_param('sssssssi', 
-                            $username, $email, $first_name, $last_name, $phone, 
-                            $role_id, $status, $user_id
-                        );
+                        $sql = "UPDATE users SET 
+                                username = '$username_escaped',
+                                email = '$email_escaped',
+                                first_name = '$first_name_escaped',
+                                last_name = '$last_name_escaped',
+                                phone = $phone_sql,
+                                role_id = $role_id,
+                                status = '$status_escaped'
+                                WHERE user_id = $user_id";
                     }
-
-                    if ($update_stmt->execute()) {
-                        // Success - clean output buffer and redirect
-                        $update_stmt->close();
-                        ob_clean(); // Clear any output buffer content
+                    
+                    // Execute the query
+                    if ($mysqli->query($sql)) {
+                        ob_clean();
                         header('Location: users_edit.php?success=1');
                         exit;
                     } else {
-                        $error = 'Erreur lors de la mise à jour de l\'utilisateur: ' . $mysqli->error;
+                        $error = 'Erreur lors de la mise à jour: ' . $mysqli->error;
                     }
-                    $update_stmt->close();
                 }
             }
         }
