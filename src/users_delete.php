@@ -12,6 +12,14 @@ include 'sidenav.php';
 require_once 'db.php';
 $mysqli = $conn;
 
+// CSRF Protection - Check if session is already started
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+if (!isset($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+
 // Check if user is logged in and is admin
 if (!isset($_SESSION['username'])) {
     header('Location: login.php');
@@ -49,182 +57,212 @@ if (!in_array($current_user_role, ['Admin', 'Super Admin'])) {
     die('Access denied. Admin privileges required.');
 }
 
-// Function to check if user has foreign key dependencies
-function checkUserDependencies($mysqli, $user_id) {
+// Audit trail logging function
+function logUserAction($mysqli, $admin_id, $target_user_id, $action, $details = '') {
+    // Check if audit log table exists first
+    $check_table = $mysqli->query("SHOW TABLES LIKE 'user_audit_log'");
+    if ($check_table->num_rows === 0) {
+        // Table doesn't exist, log to error log instead
+        error_log("User Action: Admin ID $admin_id performed '$action' on User ID $target_user_id. Details: $details");
+        return;
+    }
+    
+    $stmt = $mysqli->prepare("
+        INSERT INTO user_audit_log (admin_id, target_user_id, action, details, created_at) 
+        VALUES (?, ?, ?, ?, NOW())
+    ");
+    $stmt->bind_param('iiss', $admin_id, $target_user_id, $action, $details);
+    $stmt->execute();
+    $stmt->close();
+}
+
+// Optimized function to get all user dependencies at once
+function getAllUserDependencies($mysqli, $user_ids) {
+    if (empty($user_ids)) return [];
+    
+    $placeholders = str_repeat('?,', count($user_ids) - 1) . '?';
+    
+    $query = "
+        SELECT 
+            u.user_id,
+            COUNT(DISTINCT created_users.user_id) as created_users_count,
+            COUNT(DISTINCT p.property_id) as properties_count,
+            COUNT(DISTINCT pi.image_id) as images_count,
+            COUNT(DISTINCT pv.video_id) as videos_count,
+            COUNT(DISTINCT pu.update_id) as updates_count,
+            COUNT(DISTINCT ui.image_id) as update_images_count,
+            COUNT(DISTINCT uv.video_id) as update_videos_count,
+            COUNT(DISTINCT ur.request_id) as requests_count
+        FROM users u
+        LEFT JOIN users created_users ON u.user_id = created_users.created_by
+        LEFT JOIN properties p ON u.user_id = p.created_by
+        LEFT JOIN property_images pi ON u.user_id = pi.uploaded_by
+        LEFT JOIN property_videos pv ON u.user_id = pv.uploaded_by
+        LEFT JOIN property_updates pu ON u.user_id = pu.created_by
+        LEFT JOIN update_images ui ON u.user_id = ui.uploaded_by
+        LEFT JOIN update_videos uv ON u.user_id = uv.uploaded_by
+        LEFT JOIN user_requests ur ON u.user_id = ur.user_id
+        WHERE u.user_id IN ($placeholders)
+        GROUP BY u.user_id
+    ";
+    
+    $stmt = $mysqli->prepare($query);
+    $stmt->bind_param(str_repeat('i', count($user_ids)), ...$user_ids);
+    $stmt->execute();
+    $results = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stmt->close();
+    
+    // Convert to associative array and build dependency descriptions
     $dependencies = [];
-    
-    // Check if user created other users
-    $stmt = $mysqli->prepare("SELECT COUNT(*) as count FROM users WHERE created_by = ?");
-    $stmt->bind_param('i', $user_id);
-    $stmt->execute();
-    $result = $stmt->get_result()->fetch_assoc();
-    if ($result['count'] > 0) {
-        $dependencies[] = "A créé {$result['count']} utilisateur(s)";
+    foreach ($results as $row) {
+        $user_deps = [];
+        
+        if ($row['created_users_count'] > 0) {
+            $user_deps[] = "A créé {$row['created_users_count']} utilisateur(s)";
+        }
+        if ($row['properties_count'] > 0) {
+            $user_deps[] = "A créé {$row['properties_count']} propriété(s)";
+        }
+        if ($row['images_count'] > 0) {
+            $user_deps[] = "A téléchargé {$row['images_count']} image(s) de propriété";
+        }
+        if ($row['videos_count'] > 0) {
+            $user_deps[] = "A téléchargé {$row['videos_count']} vidéo(s) de propriété";
+        }
+        if ($row['updates_count'] > 0) {
+            $user_deps[] = "A créé {$row['updates_count']} mise(s) à jour de propriété";
+        }
+        if ($row['update_images_count'] > 0) {
+            $user_deps[] = "A téléchargé {$row['update_images_count']} image(s) de mise à jour";
+        }
+        if ($row['update_videos_count'] > 0) {
+            $user_deps[] = "A téléchargé {$row['update_videos_count']} vidéo(s) de mise à jour";
+        }
+        if ($row['requests_count'] > 0) {
+            $user_deps[] = "A fait {$row['requests_count']} demande(s)";
+        }
+        
+        $dependencies[$row['user_id']] = $user_deps;
     }
-    $stmt->close();
-    
-    // Check if user created properties
-    $stmt = $mysqli->prepare("SELECT COUNT(*) as count FROM properties WHERE created_by = ?");
-    $stmt->bind_param('i', $user_id);
-    $stmt->execute();
-    $result = $stmt->get_result()->fetch_assoc();
-    if ($result['count'] > 0) {
-        $dependencies[] = "A créé {$result['count']} propriété(s)";
-    }
-    $stmt->close();
-    
-    // Check if user uploaded property images
-    $stmt = $mysqli->prepare("SELECT COUNT(*) as count FROM property_images WHERE uploaded_by = ?");
-    $stmt->bind_param('i', $user_id);
-    $stmt->execute();
-    $result = $stmt->get_result()->fetch_assoc();
-    if ($result['count'] > 0) {
-        $dependencies[] = "A téléchargé {$result['count']} image(s) de propriété";
-    }
-    $stmt->close();
-    
-    // Check if user uploaded property videos
-    $stmt = $mysqli->prepare("SELECT COUNT(*) as count FROM property_videos WHERE uploaded_by = ?");
-    $stmt->bind_param('i', $user_id);
-    $stmt->execute();
-    $result = $stmt->get_result()->fetch_assoc();
-    if ($result['count'] > 0) {
-        $dependencies[] = "A téléchargé {$result['count']} vidéo(s) de propriété";
-    }
-    $stmt->close();
-    
-    // Check if user created property updates
-    $stmt = $mysqli->prepare("SELECT COUNT(*) as count FROM property_updates WHERE created_by = ?");
-    $stmt->bind_param('i', $user_id);
-    $stmt->execute();
-    $result = $stmt->get_result()->fetch_assoc();
-    if ($result['count'] > 0) {
-        $dependencies[] = "A créé {$result['count']} mise(s) à jour de propriété";
-    }
-    $stmt->close();
-    
-    // Check if user uploaded update images
-    $stmt = $mysqli->prepare("SELECT COUNT(*) as count FROM update_images WHERE uploaded_by = ?");
-    $stmt->bind_param('i', $user_id);
-    $stmt->execute();
-    $result = $stmt->get_result()->fetch_assoc();
-    if ($result['count'] > 0) {
-        $dependencies[] = "A téléchargé {$result['count']} image(s) de mise à jour";
-    }
-    $stmt->close();
-    
-    // Check if user uploaded update videos
-    $stmt = $mysqli->prepare("SELECT COUNT(*) as count FROM update_videos WHERE uploaded_by = ?");
-    $stmt->bind_param('i', $user_id);
-    $stmt->execute();
-    $result = $stmt->get_result()->fetch_assoc();
-    if ($result['count'] > 0) {
-        $dependencies[] = "A téléchargé {$result['count']} vidéo(s) de mise à jour";
-    }
-    $stmt->close();
-    
-    // Check if user has made requests
-    $stmt = $mysqli->prepare("SELECT COUNT(*) as count FROM user_requests WHERE user_id = ?");
-    $stmt->bind_param('i', $user_id);
-    $stmt->execute();
-    $result = $stmt->get_result()->fetch_assoc();
-    if ($result['count'] > 0) {
-        $dependencies[] = "A fait {$result['count']} demande(s)";
-    }
-    $stmt->close();
     
     return $dependencies;
 }
 
-// Handle POST actions
+// Handle POST actions with improved error handling
 $success_message = '';
 $error_message = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && isset($_POST['user_id'])) {
-    $user_id = intval($_POST['user_id']);
-    $action = $_POST['action'];
-    
-    // Get user details for authorization check
-    $stmt = $mysqli->prepare("
-        SELECT u.username, u.status, r.role_name 
-        FROM users u 
-        JOIN roles r ON u.role_id = r.role_id 
-        WHERE u.user_id = ?
-    ");
-    $stmt->bind_param('i', $user_id);
-    $stmt->execute();
-    $user_result = $stmt->get_result();
-    
-    if ($user_result->num_rows === 1) {
-        $user_data = $user_result->fetch_assoc();
-        $user_role = $user_data['role_name'];
-        $user_status = $user_data['status'];
-        $username = $user_data['username'];
+    // CSRF Protection
+    if (!isset($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
+        $error_message = 'Token de sécurité invalide. Veuillez actualiser la page.';
+    } else {
+        // Input validation
+        $user_id = filter_var($_POST['user_id'], FILTER_VALIDATE_INT);
+        $allowed_actions = ['delete', 'activate', 'deactivate'];
+        $action = $_POST['action'];
         
-        // Authorization checks
-        $authorized = false;
-        
-        if ($current_user_role === 'Super Admin') {
-            // Super Admin can manage all users except other Super Admins
-            $authorized = ($user_role !== 'Super Admin');
-        } else if ($current_user_role === 'Admin') {
-            // Admin can only manage Customers
-            $authorized = ($user_role === 'Customer');
-        }
-        
-        if (!$authorized) {
-            $error_message = 'Vous n\'êtes pas autorisé à effectuer cette action sur ce compte.';
+        if (!$user_id || !in_array($action, $allowed_actions)) {
+            $error_message = 'Paramètres invalides.';
         } else {
-            switch ($action) {
-                case 'delete':
-                    // Check for dependencies
-                    $dependencies = checkUserDependencies($mysqli, $user_id);
+            try {
+                $mysqli->begin_transaction();
+                
+                // Get user details for authorization check
+                $stmt = $mysqli->prepare("
+                    SELECT u.username, u.status, r.role_name 
+                    FROM users u 
+                    JOIN roles r ON u.role_id = r.role_id 
+                    WHERE u.user_id = ?
+                ");
+                $stmt->bind_param('i', $user_id);
+                $stmt->execute();
+                $user_result = $stmt->get_result();
+                
+                if ($user_result->num_rows === 1) {
+                    $user_data = $user_result->fetch_assoc();
+                    $user_role = $user_data['role_name'];
+                    $user_status = $user_data['status'];
+                    $username = $user_data['username'];
                     
-                    if (!empty($dependencies)) {
-                        $error_message = 'Impossible de supprimer cet utilisateur. Il a des dépendances: ' . implode(', ', $dependencies);
-                    } else {
-                        // Delete user
-                        $delete_stmt = $mysqli->prepare("DELETE FROM users WHERE user_id = ?");
-                        $delete_stmt->bind_param('i', $user_id);
-                        
-                        if ($delete_stmt->execute()) {
+                    // Authorization checks
+                    $authorized = false;
+                    
+                    if ($current_user_role === 'Super Admin') {
+                        // Super Admin can manage all users except other Super Admins
+                        $authorized = ($user_role !== 'Super Admin');
+                    } else if ($current_user_role === 'Admin') {
+                        // Admin can only manage Customers
+                        $authorized = ($user_role === 'Customer');
+                    }
+                    
+                    if (!$authorized) {
+                        throw new Exception('Vous n\'êtes pas autorisé à effectuer cette action sur ce compte.');
+                    }
+                    
+                    switch ($action) {
+                        case 'delete':
+                            // Check for dependencies using optimized function
+                            $dependencies = getAllUserDependencies($mysqli, [$user_id]);
+                            $user_dependencies = $dependencies[$user_id] ?? [];
+                            
+                            if (!empty($user_dependencies)) {
+                                throw new Exception('Impossible de supprimer cet utilisateur. Il a des dépendances: ' . implode(', ', $user_dependencies));
+                            }
+                            
+                            // Delete user
+                            $delete_stmt = $mysqli->prepare("DELETE FROM users WHERE user_id = ?");
+                            $delete_stmt->bind_param('i', $user_id);
+                            
+                            if (!$delete_stmt->execute()) {
+                                throw new Exception('Erreur lors de la suppression: ' . $mysqli->error);
+                            }
+                            
+                            $delete_stmt->close();
+                            // logUserAction($mysqli, $current_user_id, $user_id, 'DELETE', "Deleted user: $username");
                             $success_message = "L'utilisateur {$username} a été supprimé avec succès.";
-                        } else {
-                            $error_message = 'Erreur lors de la suppression: ' . $mysqli->error;
-                        }
-                        $delete_stmt->close();
+                            break;
+                            
+                        case 'deactivate':
+                            $update_stmt = $mysqli->prepare("UPDATE users SET status = 'inactive' WHERE user_id = ?");
+                            $update_stmt->bind_param('i', $user_id);
+                            
+                            if (!$update_stmt->execute()) {
+                                throw new Exception('Erreur lors de la désactivation: ' . $mysqli->error);
+                            }
+                            
+                            $update_stmt->close();
+                            // logUserAction($mysqli, $current_user_id, $user_id, 'DEACTIVATE', "Deactivated user: $username");
+                            $success_message = "L'utilisateur {$username} a été désactivé avec succès.";
+                            break;
+                            
+                        case 'activate':
+                            $update_stmt = $mysqli->prepare("UPDATE users SET status = 'active' WHERE user_id = ?");
+                            $update_stmt->bind_param('i', $user_id);
+                            
+                            if (!$update_stmt->execute()) {
+                                throw new Exception('Erreur lors de l\'activation: ' . $mysqli->error);
+                            }
+                            
+                            $update_stmt->close();
+                            // logUserAction($mysqli, $current_user_id, $user_id, 'ACTIVATE', "Activated user: $username");
+                            $success_message = "L'utilisateur {$username} a été activé avec succès.";
+                            break;
                     }
-                    break;
                     
-                case 'deactivate':
-                    $update_stmt = $mysqli->prepare("UPDATE users SET status = 'inactive' WHERE user_id = ?");
-                    $update_stmt->bind_param('i', $user_id);
-                    
-                    if ($update_stmt->execute()) {
-                        $success_message = "L'utilisateur {$username} a été désactivé avec succès.";
-                    } else {
-                        $error_message = 'Erreur lors de la désactivation: ' . $mysqli->error;
-                    }
-                    $update_stmt->close();
-                    break;
-                    
-                case 'activate':
-                    $update_stmt = $mysqli->prepare("UPDATE users SET status = 'active' WHERE user_id = ?");
-                    $update_stmt->bind_param('i', $user_id);
-                    
-                    if ($update_stmt->execute()) {
-                        $success_message = "L'utilisateur {$username} a été activé avec succès.";
-                    } else {
-                        $error_message = 'Erreur lors de l\'activation: ' . $mysqli->error;
-                    }
-                    $update_stmt->close();
-                    break;
+                    $mysqli->commit();
+                } else {
+                    throw new Exception('Utilisateur introuvable.');
+                }
+                $stmt->close();
+                
+            } catch (Exception $e) {
+                $mysqli->rollback();
+                $error_message = $e->getMessage();
+                error_log("User management error: " . $e->getMessage());
             }
         }
-    } else {
-        $error_message = 'Utilisateur introuvable.';
     }
-    $stmt->close();
 }
 
 // Build query based on user role
@@ -260,11 +298,21 @@ if ($current_user_role === 'Super Admin') {
 $stmt->execute();
 $users_result = $stmt->get_result();
 $users = [];
+$user_ids = [];
+
 while ($user = $users_result->fetch_assoc()) {
-    $user['dependencies'] = checkUserDependencies($mysqli, $user['user_id']);
     $users[] = $user;
+    $user_ids[] = $user['user_id'];
 }
 $stmt->close();
+
+// Get all dependencies at once (optimized)
+$all_dependencies = getAllUserDependencies($mysqli, $user_ids);
+
+// Add dependencies to users array
+foreach ($users as &$user) {
+    $user['dependencies'] = $all_dependencies[$user['user_id']] ?? [];
+}
 ?>
 
 <!DOCTYPE html>
@@ -368,22 +416,32 @@ $stmt->close();
             font-size: 12px;
         }
 
-        .btn-danger {
+        .btn-secondary {
+            background: var(--accent-bg);
+            color: var(--primary-text);
+        }
+
+        .btn-secondary:hover {
             background: var(--accent-text);
             color: white;
         }
 
-        .btn-danger:hover {
-            background: var(--primary-text);
-        }
-
-        .btn-warning {
+        .btn-danger {
             background: var(--danger-color);
             color: white;
         }
 
-        .btn-warning:hover {
+        .btn-danger:hover {
             background: #b91c1c;
+        }
+
+        .btn-warning {
+            background: var(--warning-color);
+            color: white;
+        }
+
+        .btn-warning:hover {
+            background: #b45309;
         }
 
         .btn-success {
@@ -455,6 +513,14 @@ $stmt->close();
             font-size: 14px;
             background: var(--primary-bg);
             color: var(--primary-text);
+        }
+
+        /* FIXED: Stats grid layout */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
         }
 
         .stat-card {
@@ -692,6 +758,11 @@ $stmt->close();
                 text-align: center;
             }
 
+            .stats-grid {
+                grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+                gap: 15px;
+            }
+
             .users-table-container {
                 overflow-x: auto;
             }
@@ -729,14 +800,14 @@ $stmt->close();
         <div class="content">
             <?php if ($success_message): ?>
                 <div class="success-message">
-                    <span>Succès</span>
+                    <span>✓ Succès</span>
                     <span><?= htmlspecialchars($success_message) ?></span>
                 </div>
             <?php endif; ?>
 
             <?php if ($error_message): ?>
                 <div class="error-message">
-                    <span>Erreur</span>
+                    <span>⚠ Erreur</span>
                     <span><?= htmlspecialchars($error_message) ?></span>
                 </div>
             <?php endif; ?>
@@ -805,6 +876,7 @@ $stmt->close();
                     </select>
                 </div>
             </div>
+            
             <div class="users-table-container">
                 <?php if (empty($users)): ?>
                     <div class="empty-state">
@@ -908,6 +980,7 @@ $stmt->close();
             <div class="modal-actions">
                 <button type="button" class="btn btn-secondary" onclick="closeModal()">Annuler</button>
                 <form method="POST" style="display: inline;">
+                    <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?>">
                     <input type="hidden" name="user_id" id="modalUserId">
                     <input type="hidden" name="action" id="modalAction">
                     <button type="submit" class="btn" id="modalConfirmBtn">Confirmer</button>
@@ -1032,36 +1105,22 @@ $stmt->close();
             }
         }
 
-        // Bulk actions functionality
-        function toggleSelectAll() {
-            const selectAll = document.getElementById('selectAll');
-            const checkboxes = document.querySelectorAll('.user-checkbox');
-            
-            checkboxes.forEach(checkbox => {
-                checkbox.checked = selectAll.checked;
-            });
-            
-            updateBulkActions();
-        }
-
-        function updateBulkActions() {
-            const checkboxes = document.querySelectorAll('.user-checkbox:checked');
-            const bulkActions = document.getElementById('bulkActions');
-            
-            if (checkboxes.length > 0) {
-                bulkActions.style.display = 'block';
-                document.getElementById('selectedCount').textContent = checkboxes.length;
-            } else {
-                bulkActions.style.display = 'none';
-            }
-        }
-
-        // Add event listeners to checkboxes when page loads
+        // Auto-hide success/error messages after 5 seconds
         document.addEventListener('DOMContentLoaded', function() {
-            const checkboxes = document.querySelectorAll('.user-checkbox');
-            checkboxes.forEach(checkbox => {
-                checkbox.addEventListener('change', updateBulkActions);
-            });
+            const successMessage = document.querySelector('.success-message');
+            const errorMessage = document.querySelector('.error-message');
+            
+            if (successMessage) {
+                setTimeout(() => {
+                    successMessage.style.display = 'none';
+                }, 5000);
+            }
+            
+            if (errorMessage) {
+                setTimeout(() => {
+                    errorMessage.style.display = 'none';
+                }, 5000);
+            }
         });
     </script>
 </body>
