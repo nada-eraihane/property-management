@@ -41,9 +41,11 @@ if (!in_array($current_user_role, ['Admin', 'Super Admin'])) {
     die('Access denied. Admin privileges required.');
 }
 
+
+
 // Build query based on user role
 if ($current_user_role === 'Super Admin') {
-    // Super Admin can see all users except themselves
+    // Super Admin can see all users
     $users_query = "
         SELECT u.user_id, u.username, u.email, u.first_name, u.last_name, u.phone, 
                u.status, u.created_at, r.role_name,
@@ -51,11 +53,8 @@ if ($current_user_role === 'Super Admin') {
         FROM users u 
         JOIN roles r ON u.role_id = r.role_id 
         LEFT JOIN users creator ON u.created_by = creator.user_id
-        WHERE u.user_id != ?
         ORDER BY u.created_at DESC
     ";
-    $stmt = $mysqli->prepare($users_query);
-    $stmt->bind_param('i', $current_user_id);
 } else {
     // Regular Admin can only see Customer accounts
     $users_query = "
@@ -68,21 +67,12 @@ if ($current_user_role === 'Super Admin') {
         WHERE r.role_name = 'Customer'
         ORDER BY u.created_at DESC
     ";
-    $stmt = $mysqli->prepare($users_query);
 }
 
-$stmt->execute();
-$users_result = $stmt->get_result();
+$users_result = $mysqli->query($users_query);
 $users = [];
 while ($user = $users_result->fetch_assoc()) {
     $users[] = $user;
-}
-$stmt->close();
-
-// Handle success message from edit page
-$success_message = '';
-if (isset($_GET['success']) && $_GET['success'] === '1') {
-    $success_message = 'Utilisateur mis à jour avec succès!';
 }
 ?>
 
@@ -91,7 +81,7 @@ if (isset($_GET['success']) && $_GET['success'] === '1') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Modifier les Utilisateurs</title>
+    <title>Gestion des Utilisateurs</title>
     <style>
         /* Theme CSS Custom Properties for Light Theme */
         :root {
@@ -192,33 +182,21 @@ if (isset($_GET['success']) && $_GET['success'] === '1') {
         }
 
         .btn-small {
-            padding: 8px 16px;
+            padding: 6px 12px;
             font-size: 12px;
         }
 
-        .btn-edit {
-            background: var(--warning-color);
+        .btn-danger {
+            background: var(--highlight-color);
             color: white;
         }
 
-        .btn-edit:hover {
-            background: #b45309;
+        .btn-danger:hover {
+            background: #8b1212;
         }
 
         .content {
             padding: 40px;
-        }
-
-        .success-message {
-            background: #f0f9f0;
-            color: var(--success-color);
-            padding: 15px;
-            border-radius: 10px;
-            margin-bottom: 20px;
-            border: 1px solid #c3e6c3;
-            display: flex;
-            align-items: center;
-            gap: 10px;
         }
 
         .stats-grid {
@@ -386,6 +364,29 @@ if (isset($_GET['success']) && $_GET['success'] === '1') {
             color: var(--accent-text);
         }
 
+        .password-field {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .password-hidden {
+            font-family: monospace;
+            color: var(--accent-text);
+            font-size: 12px;
+        }
+
+        .password-revealed {
+            font-family: monospace;
+            color: var(--secondary-text);
+            font-size: 10px;
+            background: var(--surface-bg);
+            padding: 4px 8px;
+            border-radius: 4px;
+            max-width: 200px;
+            word-break: break-all;
+        }
+
         .empty-state {
             text-align: center;
             padding: 60px 20px;
@@ -395,24 +396,6 @@ if (isset($_GET['success']) && $_GET['success'] === '1') {
         .empty-state h3 {
             margin-bottom: 10px;
             color: var(--secondary-text);
-        }
-
-        .permission-info {
-            background: var(--surface-bg);
-            padding: 15px;
-            border-radius: 10px;
-            margin-bottom: 20px;
-            border-left: 4px solid var(--accent-text);
-        }
-
-        .permission-info h4 {
-            color: var(--secondary-text);
-            margin-bottom: 8px;
-        }
-
-        .permission-info p {
-            color: var(--accent-text);
-            font-size: 14px;
         }
 
         @media (max-width: 768px) {
@@ -441,45 +424,27 @@ if (isset($_GET['success']) && $_GET['success'] === '1') {
     <div class="container">
         <div class="header">
             <div class="header-content">
-                <h1>Modifier les Utilisateurs</h1>
+                <h1>Gestion des Utilisateurs</h1>
                 <p>
                     <?php if ($current_user_role === 'Super Admin'): ?>
-                        Gérer et modifier tous les utilisateurs du système
+                        Vue complète de tous les utilisateurs du système
                     <?php else: ?>
-                        Gérer et modifier les comptes clients uniquement
+                        Vue des comptes clients uniquement
                     <?php endif; ?>
                 </p>
             </div>
             <div class="header-actions">
-                <a href="users.php" class="btn btn-primary">
-                    ← Retour à la liste
+                <a href="add_user.php" class="btn btn-primary">
+                    + Ajouter un utilisateur
                 </a>
             </div>
         </div>
 
         <div class="content">
-            <?php if ($success_message): ?>
-                <div class="success-message">
-                    <span>✅</span>
-                    <span><?= htmlspecialchars($success_message) ?></span>
-                </div>
-            <?php endif; ?>
-
-            <div class="permission-info">
-                <h4>Vos permissions de modification</h4>
-                <p>
-                    <?php if ($current_user_role === 'Super Admin'): ?>
-                        En tant que Super Admin, vous pouvez modifier tous les utilisateurs sauf votre propre compte.
-                    <?php else: ?>
-                        En tant qu'Admin, vous pouvez uniquement modifier les comptes Client.
-                    <?php endif; ?>
-                </p>
-            </div>
-
             <!-- Statistics -->
             <div class="stats-grid">
                 <div class="stat-card">
-                    <h3>Utilisateurs modifiables</h3>
+                    <h3>Total des utilisateurs</h3>
                     <div class="number"><?= count($users) ?></div>
                 </div>
                 <div class="stat-card">
@@ -529,8 +494,8 @@ if (isset($_GET['success']) && $_GET['success'] === '1') {
             <div class="users-table-container">
                 <?php if (empty($users)): ?>
                     <div class="empty-state">
-                        <h3>Aucun utilisateur modifiable</h3>
-                        <p>Il n'y a actuellement aucun utilisateur que vous pouvez modifier.</p>
+                        <h3>Aucun utilisateur trouvé</h3>
+                        <p>Il n'y a actuellement aucun utilisateur dans le système.</p>
                     </div>
                 <?php else: ?>
                     <table class="users-table">
@@ -542,7 +507,6 @@ if (isset($_GET['success']) && $_GET['success'] === '1') {
                                 <th>Téléphone</th>
                                 <th>Créé le</th>
                                 <th>Créé par</th>
-                                <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody id="usersTableBody">
@@ -576,11 +540,6 @@ if (isset($_GET['success']) && $_GET['success'] === '1') {
                                     <td><?= $user['phone'] ? htmlspecialchars($user['phone']) : '-' ?></td>
                                     <td><?= date('d/m/Y H:i', strtotime($user['created_at'])) ?></td>
                                     <td><?= $user['created_by_username'] ? htmlspecialchars($user['created_by_username']) : 'Système' ?></td>
-                                    <td>
-                                        <a href="users_edit_single.php?id=<?= $user['user_id'] ?>" class="btn btn-edit btn-small">
-                                            ✏️ Modifier
-                                        </a>
-                                    </td>
                                 </tr>
                             <?php endforeach; ?>
                         </tbody>
