@@ -590,4 +590,5 @@ while ($user = $users_result->fetch_assoc()) {
         }
     </script>
 </body>
+
 </html>
