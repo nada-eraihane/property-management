@@ -6,19 +6,17 @@ make sure that it checks if they are customers
 add a stop session page
 logout and end session -->
 
-
 <?php
 session_start();
 require_once 'db.php'; // DB connection
 $mysqli = $conn;       // for use below
 
-// Hardcoded logins for now
-$hardcoded = [
-    'user' => 'password',
+// Hardcoded customer logins for testing (optional - you can remove this section)
+$hardcoded_customers = [
+    'testcustomer' => 'customer123',
 ];
 
 $error = '';
-$success = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $username = trim($_POST['username'] ?? '');
@@ -27,18 +25,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!$username || !$password) {
         $error = 'Veuillez remplir tous les champs';
     } else {
-        // Check hardcoded
-        if (isset($hardcoded[$username]) && $hardcoded[$username] === $password) {
+        // Check hardcoded customers (optional - remove if not needed)
+        if (isset($hardcoded_customers[$username]) && $hardcoded_customers[$username] === $password) {
             $_SESSION['username'] = $username;
             $_SESSION['source'] = 'hardcoded';
-            $success = 'Connexion réussie! Redirection...';
+            $_SESSION['role'] = 'Customer';
+            header("Location: customer_dashboard.php");
+            exit();
         } else {
             // Check database
             if ($mysqli->connect_error) {
                 $error = 'Erreur de connexion à la base de données.';
             } else {
                 $stmt = $mysqli->prepare("
-                    SELECT u.password_hash, r.role_name
+                    SELECT u.password_hash, r.role_name, u.status, u.user_id
                     FROM users u
                     JOIN roles r ON u.role_id = r.role_id
                     WHERE u.username = ?");
@@ -49,16 +49,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $stmt->store_result();
 
                     if ($stmt->num_rows === 1) {
-                        $stmt->bind_result($hash, $role);
+                        $stmt->bind_result($hash, $role, $status, $user_id);
                         $stmt->fetch();
-                        if (password_verify($password, $hash)
-                            && ($role === 'Customer' )) {
+                        
+                        // Check if user is inactive
+                        if ($status === 'inactive' || $status === 'inactif') {
+                            $error = 'Votre compte est inactif. Veuillez contacter le support client.';
+                        } else if (password_verify($password, $hash)
+                            && ($role === 'Customer' || $role === 'Client')) {
                             $_SESSION['username'] = $username;
+                            $_SESSION['user_id'] = $user_id;
                             $_SESSION['source'] = 'database';
                             $_SESSION['role'] = $role;
-                            $success = 'Connexion réussie! Redirection...';
+                            header("Location: customer_dashboard.php");
+                            exit();
+                        } else if ($role !== 'Customer' && $role !== 'Client') {
+                            $error = 'Accès non autorisé. Cette page est réservée aux clients.';
                         } else {
-                            $error = 'Nom d\'utilisateur ou mot de passe incorrect, ou rôle non autorisé.';
+                            $error = 'Nom d\'utilisateur ou mot de passe incorrect.';
                         }
                     } else {
                         $error = 'Nom d\'utilisateur ou mot de passe incorrect.';
@@ -69,10 +77,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
         }
-
-        if ($success) {
-            header("Refresh:2; url=dashboard.php");
-        }
     }
 }
 ?>
@@ -82,7 +86,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Connexion Utilisateur</title>
+    <title>Connexion Client</title>
    <style>
         /* Theme CSS Custom Properties for Light Theme */
         :root {
@@ -116,7 +120,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         .login-container {
-            background: var(--secondary-bg);
+            background: var(--primary-bg);
             padding: 40px;
             border-radius: 20px;
             box-shadow: 0 20px 40px rgba(46, 65, 86, 0.15);
@@ -143,6 +147,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             font-size: 16px;
         }
 
+        .customer-icon {
+            width: 60px;
+            height: 60px;
+            background: linear-gradient(135deg, var(--highlight-color) 0%, #8b1212 100%);
+            border-radius: 50%;
+            margin: 0 auto 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 24px;
+        }
+
         .form-group {
             margin-bottom: 20px;
         }
@@ -161,14 +178,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             border-radius: 10px;
             font-size: 16px;
             transition: border-color 0.3s ease;
-            background-color: var( --primary-bg);
+            background-color: var(--primary-bg);
             color: var(--primary-text);
         }
 
         .form-group input:focus {
             outline: none;
-            border-color: var(--primary-bg);
-            box-shadow: 0 0 0 3px rgba(86, 124, 141, 0.1);
+            border-color: var(--highlight-color);
+            box-shadow: 0 0 0 3px rgba(162, 20, 20, 0.1);
             background-color: var(--primary-bg);
         }
 
@@ -234,76 +251,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             display: block;
         }
 
-        .success-message {
-            background: var(--surface-bg);
-            color: var(--secondary-text);
-            padding: 12px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            border: 1px solid var(--accent-bg);
-            display: block;
-        }
-
-        .loading-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(255, 255, 255, 0.9);
-            display: none;
-            justify-content: center;
-            align-items: center;
-            z-index: 1000;
-        }
-
-        .loading-spinner {
-            width: 50px;
-            height: 50px;
-            border: 4px solid var(--accent-bg);
-            border-top: 4px solid var(--highlight-color);
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            justify-content: center;
-            align-items: center;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        .loading-text {
+        .register-link {
+            text-align: center;
             margin-top: 20px;
-            color: var(--secondary-text);
-            font-size: 16px;
+            padding-top: 20px;
+            border-top: 1px solid var(--accent-bg);
+        }
+
+        .register-link a {
+            color: var(--highlight-color);
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .register-link a:hover {
+            text-decoration: underline;
         }
     </style>
 </head>
 <body>
-    <!-- Loading overlay -->
-    <div class="loading-overlay" id="loadingOverlay">
-        <div>
-            <div class="loading-spinner"></div>
-            <div class="loading-text">Connexion en cours...</div>
-        </div>
-    </div>
-
-    <div class="login-container" id="loginContainer">
+    <div class="login-container">
         <div class="login-header">
-            <h1>Connexion Utilisateur</h1>
-            <p>Veuillez saisir vos identifiants</p>
+            <div class="customer-icon">👤</div>
+            <h1>Espace Client</h1>
+            <p>Connectez-vous à votre compte</p>
         </div>
 
         <?php if ($error): ?>
-            <div class="error-message" id="errorMessage"><?= htmlspecialchars($error) ?></div>
-        <?php endif; ?>
-        <?php if ($success): ?>
-            <div class="success-message" id="successMessage"><?= htmlspecialchars($success) ?></div>
+            <div class="error-message"><?= htmlspecialchars($error) ?></div>
         <?php endif; ?>
 
-        <?php if (!$success): ?>
-        <form method="POST" id="loginForm">
+        <form method="POST">
             <div class="form-group">
                 <label for="username">Nom d'utilisateur</label>
                 <input type="text" id="username" name="username" required value="<?= htmlspecialchars($username ?? '') ?>">
@@ -314,25 +292,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
             <button type="submit" class="login-button">Se connecter</button>
         </form>
-        <?php endif; ?>
 
-        <br><br>
+        <div class="register-link">
+            <p>Pas encore de compte ? <a href="register.php">Créer un compte</a></p>
+        </div>
+
+        <br>
         <a href="home.php" class="back-button">
             <span class="arrow">←</span>
             <span>Retour à la page d'accueil</span>
         </a>
     </div>
-
-    <script>
-        // Show loading overlay when form is submitted
-        document.getElementById('loginForm')?.addEventListener('submit', function() {
-            document.getElementById('loadingOverlay').style.display = 'flex';
-        });
-
-        // If there's a success message, show loading overlay and redirect
-        <?php if ($success): ?>
-            document.getElementById('loadingOverlay').style.display = 'flex';
-        <?php endif; ?>
-    </script>
 </body>
 </html>
