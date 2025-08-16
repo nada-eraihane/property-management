@@ -1,7 +1,3 @@
-<!-- to do:
-make sure if person is set to inactif they should be denied access to the admin side -->
-
-
 <?php
 session_start();
 require_once 'db.php'; // DB connection
@@ -13,7 +9,6 @@ $hardcoded = [
 ];
 
 $error = '';
-$success = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $username = trim($_POST['username'] ?? '');
@@ -26,14 +21,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (isset($hardcoded[$username]) && $hardcoded[$username] === $password) {
             $_SESSION['username'] = $username;
             $_SESSION['source'] = 'hardcoded';
-            $success = 'Connexion réussie! Redirection...';
+            header("Location: dashboard.php");
+            exit();
         } else {
             // Check database
             if ($mysqli->connect_error) {
                 $error = 'Erreur de connexion à la base de données.';
             } else {
                 $stmt = $mysqli->prepare("
-                    SELECT u.password_hash, r.role_name
+                    SELECT u.password_hash, r.role_name, u.status
                     FROM users u
                     JOIN roles r ON u.role_id = r.role_id
                     WHERE u.username = ?");
@@ -44,14 +40,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $stmt->store_result();
 
                     if ($stmt->num_rows === 1) {
-                        $stmt->bind_result($hash, $role);
+                        $stmt->bind_result($hash, $role, $status);
                         $stmt->fetch();
-                        if (password_verify($password, $hash)
+                        
+                        // Check if user is inactive
+                        if ($status === 'inactive' || $status === 'inactif') {
+                            $error = 'Votre compte est inactif. Veuillez contacter l\'administrateur.';
+                        } else if (password_verify($password, $hash)
                             && ($role === 'Admin' || $role === 'Super Admin')) {
                             $_SESSION['username'] = $username;
                             $_SESSION['source'] = 'database';
                             $_SESSION['role'] = $role;
-                            $success = 'Connexion réussie! Redirection...';
+                            header("Location: dashboard.php");
+                            exit();
                         } else {
                             $error = 'Nom d\'utilisateur ou mot de passe incorrect, ou rôle non autorisé.';
                         }
@@ -63,10 +64,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $error = 'Erreur lors de la préparation de la requête.';
                 }
             }
-        }
-
-        if ($success) {
-            header("Refresh:2; url=dashboard.php");
         }
     }
 }
@@ -228,75 +225,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             border: 1px solid #fed7d7;
             display: block;
         }
-
-        .success-message {
-            background: var(--surface-bg);
-            color: var(--secondary-text);
-            padding: 12px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            border: 1px solid var(--accent-bg);
-            display: block;
-        }
-
-        .loading-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(255, 255, 255, 0.9);
-            display: none;
-            justify-content: center;
-            align-items: center;
-            z-index: 1000;
-        }
-
-        .loading-spinner {
-            width: 50px;
-            height: 50px;
-            border: 4px solid var(--accent-bg);
-            border-top: 4px solid var(--highlight-color);
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        .loading-text {
-            margin-top: 20px;
-            color: var(--secondary-text);
-            font-size: 16px;
-        }
     </style>
 </head>
 <body>
-    <!-- Loading overlay -->
-    <div class="loading-overlay" id="loadingOverlay">
-        <div>
-            <div class="loading-spinner"></div>
-            <div class="loading-text">Connexion en cours...</div>
-        </div>
-    </div>
-
-    <div class="login-container" id="loginContainer">
+    <div class="login-container">
         <div class="login-header">
             <h1>Connexion Administrateur</h1>
             <p>Veuillez saisir vos identifiants</p>
         </div>
 
         <?php if ($error): ?>
-            <div class="error-message" id="errorMessage"><?= htmlspecialchars($error) ?></div>
-        <?php endif; ?>
-        <?php if ($success): ?>
-            <div class="success-message" id="successMessage"><?= htmlspecialchars($success) ?></div>
+            <div class="error-message"><?= htmlspecialchars($error) ?></div>
         <?php endif; ?>
 
-        <?php if (!$success): ?>
-        <form method="POST" id="loginForm">
+        <form method="POST">
             <div class="form-group">
                 <label for="username">Nom d'utilisateur</label>
                 <input type="text" id="username" name="username" required value="<?= htmlspecialchars($username ?? '') ?>">
@@ -307,7 +249,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
             <button type="submit" class="login-button">Se connecter</button>
         </form>
-        <?php endif; ?>
 
         <br><br>
         <a href="home.php" class="back-button">
@@ -315,17 +256,5 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <span>Retour à la page d'accueil</span>
         </a>
     </div>
-
-    <script>
-        // Show loading overlay when form is submitted
-        document.getElementById('loginForm')?.addEventListener('submit', function() {
-            document.getElementById('loadingOverlay').style.display = 'flex';
-        });
-
-        // If there's a success message, show loading overlay and redirect
-        <?php if ($success): ?>
-            document.getElementById('loadingOverlay').style.display = 'flex';
-        <?php endif; ?>
-    </script>
 </body>
 </html>
