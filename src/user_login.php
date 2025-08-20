@@ -251,22 +251,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             display: block;
         }
 
-        .register-link {
-            text-align: center;
-            margin-top: 20px;
-            padding-top: 20px;
-            border-top: 1px solid var(--accent-bg);
-        }
-
-        .register-link a {
-            color: var(--highlight-color);
-            text-decoration: none;
-            font-weight: 500;
-        }
-
-        .register-link a:hover {
-            text-decoration: underline;
-        }
     </style>
 </head>
 <body>
@@ -293,9 +277,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <button type="submit" class="login-button">Se connecter</button>
         </form>
 
-        <div class="register-link">
-            <p>Pas encore de compte ? <a href="register.php">Créer un compte</a></p>
-        </div>
 
         <br>
         <a href="home.php" class="back-button">
