@@ -58,7 +58,7 @@
                     </button>
                     <ul class="sub-menu">
                         <li><a href="property_announcements_add.php">Ajouter annonce</a></li>
-                        <li><a href="property_announcements_edit.php">Modifier annonce</a></li>
+                        <li><a href="properties.php">Modifier annonce</a></li>
                         <li><a href="property_announcements_delete.php">Supprimer annonce</a></li>
                     </ul>
                 </div>

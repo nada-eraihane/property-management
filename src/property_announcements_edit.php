@@ -1,6 +1,5 @@
 <?php
 require_once 'session_check.php';
-include 'sidenav.php';
 require_once 'db.php';
 $mysqli = $conn;
 
@@ -10,6 +9,13 @@ if (!isset($_SESSION['csrf_token'])) {
 
 if (!isset($_SESSION['username'])) {
     header('Location: login.php');
+    exit;
+}
+
+// Get property ID from URL
+$property_id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
+if (!$property_id) {
+    header('Location: properties.php');
     exit;
 }
 
@@ -33,18 +39,52 @@ if (!in_array($current_user_role, ['Admin', 'Super Admin'])) {
     die('Access denied. Admin privileges required.');
 }
 
+// Get property data
+$property = null;
+$stmt = $mysqli->prepare("SELECT * FROM properties WHERE property_id = ? AND is_active = 1");
+$stmt->bind_param('i', $property_id);
+$stmt->execute();
+$result = $stmt->get_result();
+
+if ($result->num_rows === 1) {
+    $property = $result->fetch_assoc();
+} else {
+    header('Location: properties.php');
+    exit;
+}
+$stmt->close();
+
+// Get existing images
+$existing_images = [];
+$stmt = $mysqli->prepare("SELECT * FROM property_images WHERE property_id = ? ORDER BY sort_order, image_id");
+$stmt->bind_param('i', $property_id);
+$stmt->execute();
+$result = $stmt->get_result();
+while ($row = $result->fetch_assoc()) {
+    $existing_images[] = $row;
+}
+$stmt->close();
+
+// Get existing videos
+$existing_videos = [];
+$stmt = $mysqli->prepare("SELECT * FROM property_videos WHERE property_id = ? ORDER BY video_id");
+$stmt->bind_param('i', $property_id);
+$stmt->execute();
+$result = $stmt->get_result();
+while ($row = $result->fetch_assoc()) {
+    $existing_videos[] = $row;
+}
+$stmt->close();
+
 $success_message = '';
 $error_message = '';
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'create_property') {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'update_property') {
     if (!isset($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
         $error_message = 'Token de sécurité invalide. Veuillez actualiser la page.';
     } else {
         try {
             $mysqli->begin_transaction();
-            
-            // Debug: Log what we're receiving
-            error_log("Construction Status received: '" . $_POST['construction_status'] . "'");
             
             $required_fields = ['property_code', 'description', 'address_line1', 'city', 'state', 'postal_code', 'bedrooms', 'bathrooms', 'construction_status'];
             
@@ -58,21 +98,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 throw new Exception('Format du code propriété invalide (ex: A-1234)');
             }
             
-            $stmt = $mysqli->prepare("SELECT COUNT(*) FROM properties WHERE property_code = ?");
-            $stmt->bind_param('s', $_POST['property_code']);
+            // Check if property code exists for other properties
+            $stmt = $mysqli->prepare("SELECT COUNT(*) FROM properties WHERE property_code = ? AND property_id != ?");
+            $stmt->bind_param('si', $_POST['property_code'], $property_id);
             $stmt->execute();
             $result = $stmt->get_result();
             $count = $result->fetch_row()[0];
             $stmt->close();
             
             if ($count > 0) {
-                throw new Exception('Ce code de propriété existe déjà');
-            }
-            
-            // Validate construction_status against allowed ENUM values
-            $allowed_statuses = ['foundation', 'framing', 'roofing', 'plumbing', 'electrical', 'finishing', 'final_inspection'];
-            if (!in_array($_POST['construction_status'], $allowed_statuses)) {
-                throw new Exception('État de construction invalide');
+                throw new Exception('Ce code de propriété existe déjà pour une autre propriété');
             }
             
             $address_line2 = !empty($_POST['address_line2']) ? $_POST['address_line2'] : null;
@@ -85,60 +120,93 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             $bathrooms = (float)$_POST['bathrooms'];
             $construction_status = $_POST['construction_status'];
             
-            // Debug: Log the prepared values
-            error_log("About to insert - Construction Status: '$construction_status'");
-            error_log("All values to insert: " . json_encode([
-                'property_code' => $_POST['property_code'],
-                'construction_status' => $construction_status,
-                'bedrooms' => $bedrooms,
-                'bathrooms' => $bathrooms
-            ]));
-            
-            // Prepare the INSERT statement - ensure construction_status is in correct position
+            // Update property
             $stmt = $mysqli->prepare("
-                INSERT INTO properties (
-                    property_code, description, address_line1, address_line2, city, state, postal_code,
-                    price, bedrooms, bathrooms, surface, construction_status, completion_percentage,
-                    estimated_completion, sale_status, created_by
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                UPDATE properties SET 
+                    property_code = ?, description = ?, address_line1 = ?, address_line2 = ?, 
+                    city = ?, state = ?, postal_code = ?, price = ?, bedrooms = ?, bathrooms = ?, 
+                    surface = ?, construction_status = ?, completion_percentage = ?, 
+                    estimated_completion = ?, sale_status = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE property_id = ?
             ");
             
-            if (!$stmt) {
-                throw new Exception('Prepare failed: ' . $mysqli->error);
-            }
-            
-            // Bind parameters - make sure the order matches exactly
-            $bind_result = $stmt->bind_param('sssssssdidsisssi',
-                $_POST['property_code'],      // s - string
-                $_POST['description'],        // s - string  
-                $_POST['address_line1'],      // s - string
-                $address_line2,               // s - string (nullable)
-                $_POST['city'],               // s - string
-                $_POST['state'],              // s - string
-                $_POST['postal_code'],        // s - string
-                $price,                       // d - double
-                $bedrooms,                    // i - integer
-                $bathrooms,                   // d - double (can be 1.5, 2.5, etc.)
-                $surface,                     // i - integer (nullable)
-                $construction_status,         // s - string (ENUM)
-                $completion_percentage,       // i - integer
-                $estimated_completion,        // s - string (DATE, nullable)
-                $sale_status,                 // s - string (ENUM)
-                $current_user_id             // i - integer
+            $stmt->bind_param('sssssssdidssissi',
+                $_POST['property_code'],
+                $_POST['description'],
+                $_POST['address_line1'],
+                $address_line2,
+                $_POST['city'],
+                $_POST['state'],
+                $_POST['postal_code'],
+                $price,
+                $bedrooms,
+                $bathrooms,
+                $surface,
+                $construction_status,
+                $completion_percentage,
+                $estimated_completion,
+                $sale_status,
+                $property_id
             );
             
-            if (!$bind_result) {
-                throw new Exception('Bind failed: ' . $stmt->error);
-            }
-            
-            if (!$stmt->execute()) {
-                error_log("MySQL Error: " . $stmt->error);
-                throw new Exception('Erreur lors de l\'insertion: ' . $stmt->error);
-            }
-            
-            $property_id = $mysqli->insert_id;
+            $stmt->execute();
             $stmt->close();
             
+            // Handle image deletion
+            if (isset($_POST['delete_images']) && is_array($_POST['delete_images'])) {
+                foreach ($_POST['delete_images'] as $image_id) {
+                    $image_id = (int)$image_id;
+                    
+                    // Get image path before deletion
+                    $stmt = $mysqli->prepare("SELECT file_path FROM property_images WHERE image_id = ? AND property_id = ?");
+                    $stmt->bind_param('ii', $image_id, $property_id);
+                    $stmt->execute();
+                    $result = $stmt->get_result();
+                    
+                    if ($row = $result->fetch_assoc()) {
+                        $file_path = $row['file_path'];
+                        if (file_exists($file_path)) {
+                            unlink($file_path);
+                        }
+                        
+                        // Delete from database
+                        $stmt_delete = $mysqli->prepare("DELETE FROM property_images WHERE image_id = ? AND property_id = ?");
+                        $stmt_delete->bind_param('ii', $image_id, $property_id);
+                        $stmt_delete->execute();
+                        $stmt_delete->close();
+                    }
+                    $stmt->close();
+                }
+            }
+            
+            // Handle video deletion
+            if (isset($_POST['delete_videos']) && is_array($_POST['delete_videos'])) {
+                foreach ($_POST['delete_videos'] as $video_id) {
+                    $video_id = (int)$video_id;
+                    
+                    // Get video path before deletion
+                    $stmt = $mysqli->prepare("SELECT file_path FROM property_videos WHERE video_id = ? AND property_id = ?");
+                    $stmt->bind_param('ii', $video_id, $property_id);
+                    $stmt->execute();
+                    $result = $stmt->get_result();
+                    
+                    if ($row = $result->fetch_assoc()) {
+                        $file_path = $row['file_path'];
+                        if (file_exists($file_path)) {
+                            unlink($file_path);
+                        }
+                        
+                        // Delete from database
+                        $stmt_delete = $mysqli->prepare("DELETE FROM property_videos WHERE video_id = ? AND property_id = ?");
+                        $stmt_delete->bind_param('ii', $video_id, $property_id);
+                        $stmt_delete->execute();
+                        $stmt_delete->close();
+                    }
+                    $stmt->close();
+                }
+            }
+            
+            // Handle new images
             if (!empty($_FILES['images']['name'][0])) {
                 $upload_dir = 'uploads/properties/' . $property_id . '/images/';
                 if (!file_exists($upload_dir)) {
@@ -158,11 +226,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                         $file_path = $upload_dir . $new_filename;
                         
                         if (move_uploaded_file($_FILES['images']['tmp_name'][$key], $file_path)) {
+                            // Get max sort order
+                            $stmt = $mysqli->prepare("SELECT COALESCE(MAX(sort_order), 0) + 1 as next_order FROM property_images WHERE property_id = ?");
+                            $stmt->bind_param('i', $property_id);
+                            $stmt->execute();
+                            $result = $stmt->get_result();
+                            $next_order = $result->fetch_assoc()['next_order'];
+                            $stmt->close();
+                            
                             $stmt = $mysqli->prepare("INSERT INTO property_images (property_id, file_name, file_path, alt_text, is_primary, sort_order, uploaded_by) VALUES (?, ?, ?, ?, ?, ?, ?)");
                             
-                            $is_primary = ($key === 0);
-                            $sort_order = $key + 1;
-                            $stmt->bind_param('isssbii', $property_id, $new_filename, $file_path, $filename, $is_primary, $sort_order, $current_user_id);
+                            $is_primary = false; // Don't auto-set primary for new images in edit
+                            $stmt->bind_param('isssbii', $property_id, $new_filename, $file_path, $filename, $is_primary, $next_order, $current_user_id);
                             $stmt->execute();
                             $stmt->close();
                         }
@@ -170,6 +245,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 }
             }
             
+            // Handle new videos
             if (!empty($_FILES['videos']['name'][0])) {
                 $upload_dir = 'uploads/properties/' . $property_id . '/videos/';
                 if (!file_exists($upload_dir)) {
@@ -202,15 +278,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             }
             
             $mysqli->commit();
-            $success_message = "Propriété créée avec succès ! Code: " . $_POST['property_code'];
+            $success_message = "Propriété mise à jour avec succès ! Code: " . $_POST['property_code'];
+            
+            // Refresh property data and media after update
+            $stmt = $mysqli->prepare("SELECT * FROM properties WHERE property_id = ?");
+            $stmt->bind_param('i', $property_id);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            $property = $result->fetch_assoc();
+            $stmt->close();
+            
+            // Refresh existing images
+            $existing_images = [];
+            $stmt = $mysqli->prepare("SELECT * FROM property_images WHERE property_id = ? ORDER BY sort_order, image_id");
+            $stmt->bind_param('i', $property_id);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            while ($row = $result->fetch_assoc()) {
+                $existing_images[] = $row;
+            }
+            $stmt->close();
+            
+            // Refresh existing videos
+            $existing_videos = [];
+            $stmt = $mysqli->prepare("SELECT * FROM property_videos WHERE property_id = ? ORDER BY video_id");
+            $stmt->bind_param('i', $property_id);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            while ($row = $result->fetch_assoc()) {
+                $existing_videos[] = $row;
+            }
+            $stmt->close();
             
         } catch (Exception $e) {
             $mysqli->rollback();
             $error_message = $e->getMessage();
-            error_log("Property creation error: " . $e->getMessage());
         }
     }
 }
+
+// Use form data if available, otherwise use property data
+$form_data = $_POST ?? $property;
 ?>
 
 <!DOCTYPE html>
@@ -218,7 +326,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Créer une Nouvelle Propriété</title>
+    <title>Modifier la Propriété - <?= htmlspecialchars($property['property_code']) ?></title>
     <style>
         :root {
             --primary-bg: #ffffff;
@@ -229,12 +337,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             --secondary-text: #1b2639;
             --accent-text: #567c8d;
             --highlight-color: #a21414;
-            --success-color: #3a5a40;
+            --success-color: #2d7d2d;
             --warning-color: #d97706;
             --danger-color: #dc2626;
-            --footer-bg-color: #101928ff;
-            --footer-txt-color: #ffffff;
-            --current-theme: 'light';
         }
 
         * {
@@ -261,7 +366,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         }
 
         .header {
-            background: linear-gradient(135deg, var(--success-color) 0%, #2d4532 100%);
+            background: linear-gradient(135deg, var(--success-color) 0%, #166534 100%);
             color: white;
             padding: 30px;
             display: flex;
@@ -300,18 +405,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             border: 2px solid rgba(255, 255, 255, 0.3);
         }
 
-        .btn-primary:hover {
-            background: rgba(255, 255, 255, 0.3);
-            border-color: rgba(255, 255, 255, 0.5);
-        }
-
         .btn-success {
             background: var(--success-color);
             color: white;
-        }
-
-        .btn-success:hover {
-            background: #2d4532;
         }
 
         .btn-secondary {
@@ -319,8 +415,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             color: var(--primary-text);
         }
 
-        .btn-secondary:hover {
-            background: #b5c6d3;
+        .btn-danger {
+            background: var(--danger-color);
+            color: white;
         }
 
         .content {
@@ -396,7 +493,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             outline: none;
             border-color: var(--success-color);
             background: var(--primary-bg);
-            box-shadow: 0 0 0 3px rgba(58, 90, 64, 0.1);
+            box-shadow: 0 0 0 3px rgba(45, 125, 45, 0.1);
         }
 
         textarea {
@@ -404,17 +501,87 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             min-height: 120px;
         }
 
-        .file-upload-section {
+        .media-section {
             background: var(--surface-bg);
             border-radius: 15px;
             padding: 25px;
             margin-bottom: 25px;
         }
 
-        .file-upload-section h3 {
+        .media-section h3 {
             color: var(--secondary-text);
             margin-bottom: 15px;
             font-size: 18px;
+        }
+
+        .existing-media {
+            margin-bottom: 20px;
+        }
+
+        .existing-media h4 {
+            color: var(--secondary-text);
+            margin-bottom: 10px;
+            font-size: 16px;
+        }
+
+        .existing-media-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .existing-media-item {
+            position: relative;
+            background: var(--primary-bg);
+            border-radius: 10px;
+            overflow: hidden;
+            border: 2px solid var(--accent-bg);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+        }
+
+        .existing-media-item img, 
+        .existing-media-item video {
+            width: 100%;
+            height: 120px;
+            object-fit: cover;
+        }
+
+        .existing-media-item .file-info {
+            padding: 8px;
+            font-size: 11px;
+            text-align: center;
+            background: var(--surface-bg);
+            color: var(--primary-text);
+        }
+
+        .delete-media-checkbox {
+            position: absolute;
+            top: 5px;
+            left: 5px;
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+            z-index: 10;
+        }
+
+        .delete-media-label {
+            position: absolute;
+            top: 30px;
+            left: 5px;
+            background: var(--danger-color);
+            color: white;
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+        }
+
+        .existing-media-item:hover .delete-media-label {
+            opacity: 1;
         }
 
         .file-upload-area {
@@ -510,9 +677,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         }
 
         .file-count.success {
-            background: rgba(58, 90, 64, 0.1);
+            background: rgba(45, 125, 45, 0.1);
             color: var(--success-color);
-            border: 1px solid rgba(58, 90, 64, 0.3);
+            border: 1px solid rgba(45, 125, 45, 0.3);
         }
 
         .btn-container {
@@ -524,23 +691,64 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             border-top: 2px solid var(--accent-bg);
         }
 
+        .breadcrumb {
+            background: var(--surface-bg);
+            padding: 15px 30px;
+            border-bottom: 1px solid var(--accent-bg);
+        }
+
+        .breadcrumb a {
+            color: var(--accent-text);
+            text-decoration: none;
+            margin-right: 10px;
+        }
+
+        .breadcrumb a:hover {
+            color: var(--primary-text);
+        }
+
+        .breadcrumb span {
+            color: var(--primary-text);
+            margin: 0 5px;
+        }
+
         @media (max-width: 768px) {
             .form-grid {
                 grid-template-columns: 1fr;
             }
             
-            .image-preview, .video-preview {
+            .existing-media-grid,
+            .image-preview, 
+            .video-preview {
                 grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            }
+
+            .header {
+                flex-direction: column;
+                gap: 15px;
+                text-align: center;
+            }
+
+            .content {
+                padding: 20px;
             }
         }
     </style>
 </head>
 <body>
+    <?php include 'sidenav.php'; ?>
+    
     <div class="container">
+        <div class="breadcrumb">
+            <a href="properties.php">Propriétés</a>
+            <span>/</span>
+            <span>Modifier <?= htmlspecialchars($property['property_code']) ?></span>
+        </div>
+
         <div class="header">
             <div>
-                <h1>Créer une Nouvelle Propriété</h1>
-                <p>Ajouter une nouvelle propriété au système de gestion</p>
+                <h1>Modifier la Propriété</h1>
+                <p>Code: <?= htmlspecialchars($property['property_code']) ?></p>
             </div>
             <div>
                 <a href="properties.php" class="btn btn-primary">Retour aux propriétés</a>
@@ -565,104 +773,151 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             <div class="form-container">
                 <form method="POST" enctype="multipart/form-data">
                     <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?>">
-                    <input type="hidden" name="action" value="create_property">
+                    <input type="hidden" name="action" value="update_property">
 
                     <div class="form-grid">
                         <div class="form-group">
                             <label for="propertyCode">Code de la Propriété <span class="required">*</span></label>
-                            <input type="text" id="propertyCode" name="property_code" required placeholder="Ex: A-1234" value="<?= htmlspecialchars($_POST['property_code'] ?? '') ?>">
+                            <input type="text" id="propertyCode" name="property_code" required placeholder="Ex: A-1234" value="<?= htmlspecialchars($form_data['property_code'] ?? '') ?>">
                         </div>
 
                         <div class="form-group">
                             <label for="bedrooms">Chambres <span class="required">*</span></label>
-                            <input type="number" id="bedrooms" name="bedrooms" min="1" max="20" required value="<?= htmlspecialchars($_POST['bedrooms'] ?? '') ?>">
+                            <input type="number" id="bedrooms" name="bedrooms" min="1" max="20" required value="<?= htmlspecialchars($form_data['bedrooms'] ?? '') ?>">
                         </div>
 
                         <div class="form-group">
                             <label for="price">Prix (DA)</label>
-                            <input type="number" id="price" name="price" min="0" step="0.01" placeholder="0.00" value="<?= htmlspecialchars($_POST['price'] ?? '') ?>">
+                            <input type="number" id="price" name="price" min="0" step="0.01" placeholder="0.00" value="<?= htmlspecialchars($form_data['price'] ?? '') ?>">
                         </div>
 
                         <div class="form-group">
                             <label for="bathrooms">Salles de bain <span class="required">*</span></label>
-                            <input type="number" id="bathrooms" name="bathrooms" min="0.5" max="10" step="0.5" required value="<?= htmlspecialchars($_POST['bathrooms'] ?? '') ?>">
+                            <input type="number" id="bathrooms" name="bathrooms" min="0.5" max="10" step="0.5" required value="<?= htmlspecialchars($form_data['bathrooms'] ?? '') ?>">
                         </div>
 
                         <div class="form-group">
                             <label for="surface">Surface (m²)</label>
-                            <input type="number" id="surface" name="surface" min="20" max="1000" value="<?= htmlspecialchars($_POST['surface'] ?? '') ?>">
+                            <input type="number" id="surface" name="surface" min="20" max="1000" value="<?= htmlspecialchars($form_data['surface'] ?? '') ?>">
+                        </div>
+
+                        <div class="form-group full-width">
+                            <label for="description">Description <span class="required">*</span></label>
+                            <textarea id="description" name="description" required placeholder="Décrivez les caractéristiques..."><?= htmlspecialchars($form_data['description'] ?? '') ?></textarea>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="addressLine1">Adresse ligne 1 <span class="required">*</span></label>
+                            <input type="text" id="addressLine1" name="address_line1" required value="<?= htmlspecialchars($form_data['address_line1'] ?? '') ?>">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="addressLine2">Adresse ligne 2</label>
+                            <input type="text" id="addressLine2" name="address_line2" value="<?= htmlspecialchars($form_data['address_line2'] ?? '') ?>">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="city">Ville <span class="required">*</span></label>
+                            <input type="text" id="city" name="city" required value="<?= htmlspecialchars($form_data['city'] ?? '') ?>">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="state">État/Région <span class="required">*</span></label>
+                            <input type="text" id="state" name="state" required value="<?= htmlspecialchars($form_data['state'] ?? '') ?>">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="postalCode">Code postal <span class="required">*</span></label>
+                            <input type="text" id="postalCode" name="postal_code" required value="<?= htmlspecialchars($form_data['postal_code'] ?? '') ?>">
                         </div>
 
                         <div class="form-group">
                             <label for="constructionStatus">État de construction <span class="required">*</span></label>
                             <select id="constructionStatus" name="construction_status" required>
                                 <option value="">Sélectionner l'état...</option>
-                                <option value="foundation" <?= isset($_POST['construction_status']) && $_POST['construction_status'] === 'foundation' ? 'selected' : '' ?>>Fondation</option>
-                                <option value="framing" <?= isset($_POST['construction_status']) && $_POST['construction_status'] === 'framing' ? 'selected' : '' ?>>Charpente</option>
-                                <option value="roofing" <?= isset($_POST['construction_status']) && $_POST['construction_status'] === 'roofing' ? 'selected' : '' ?>>Toiture</option>
-                                <option value="plumbing" <?= isset($_POST['construction_status']) && $_POST['construction_status'] === 'plumbing' ? 'selected' : '' ?>>Plomberie</option>
-                                <option value="electrical" <?= isset($_POST['construction_status']) && $_POST['construction_status'] === 'electrical' ? 'selected' : '' ?>>Électricité</option>
-                                <option value="finishing" <?= isset($_POST['construction_status']) && $_POST['construction_status'] === 'finishing' ? 'selected' : '' ?>>Finitions</option>
-                                <option value="final_inspection" <?= isset($_POST['construction_status']) && $_POST['construction_status'] === 'final_inspection' ? 'selected' : '' ?>>Inspection finale</option>
+                                <option value="foundation" <?= ($form_data['construction_status'] ?? '') === 'foundation' ? 'selected' : '' ?>>Fondation</option>
+                                <option value="framing" <?= ($form_data['construction_status'] ?? '') === 'framing' ? 'selected' : '' ?>>Charpente</option>
+                                <option value="roofing" <?= ($form_data['construction_status'] ?? '') === 'roofing' ? 'selected' : '' ?>>Toiture</option>
+                                <option value="plumbing" <?= ($form_data['construction_status'] ?? '') === 'plumbing' ? 'selected' : '' ?>>Plomberie</option>
+                                <option value="electrical" <?= ($form_data['construction_status'] ?? '') === 'electrical' ? 'selected' : '' ?>>Électricité</option>
+                                <option value="finishing" <?= ($form_data['construction_status'] ?? '') === 'finishing' ? 'selected' : '' ?>>Finitions</option>
+                                <option value="final_inspection" <?= ($form_data['construction_status'] ?? '') === 'final_inspection' ? 'selected' : '' ?>>Inspection finale</option>
                             </select>
-                        </div>
-
-                        <div class="form-group full-width">
-                            <label for="description">Description <span class="required">*</span></label>
-                            <textarea id="description" name="description" required placeholder="Décrivez les caractéristiques..."><?= htmlspecialchars($_POST['description'] ?? '') ?></textarea>
-                        </div>
-
-                        <div class="form-group">
-                            <label for="addressLine1">Adresse ligne 1 <span class="required">*</span></label>
-                            <input type="text" id="addressLine1" name="address_line1" required value="<?= htmlspecialchars($_POST['address_line1'] ?? '') ?>">
-                        </div>
-
-                        <div class="form-group">
-                            <label for="addressLine2">Adresse ligne 2</label>
-                            <input type="text" id="addressLine2" name="address_line2" value="<?= htmlspecialchars($_POST['address_line2'] ?? '') ?>">
-                        </div>
-
-                        <div class="form-group">
-                            <label for="city">Ville <span class="required">*</span></label>
-                            <input type="text" id="city" name="city" required value="<?= htmlspecialchars($_POST['city'] ?? '') ?>">
-                        </div>
-
-                        <div class="form-group">
-                            <label for="state">État/Région <span class="required">*</span></label>
-                            <input type="text" id="state" name="state" required value="<?= htmlspecialchars($_POST['state'] ?? '') ?>">
-                        </div>
-
-                        <div class="form-group">
-                            <label for="postalCode">Code postal <span class="required">*</span></label>
-                            <input type="text" id="postalCode" name="postal_code" required value="<?= htmlspecialchars($_POST['postal_code'] ?? '') ?>">
                         </div>
 
                         <div class="form-group">
                             <label for="completionPercentage">Pourcentage d'achèvement</label>
-                            <input type="number" id="completionPercentage" name="completion_percentage" min="0" max="100" value="<?= htmlspecialchars($_POST['completion_percentage'] ?? '0') ?>">
+                            <input type="number" id="completionPercentage" name="completion_percentage" min="0" max="100" value="<?= htmlspecialchars($form_data['completion_percentage'] ?? '0') ?>">
                         </div>
 
                         <div class="form-group">
                             <label for="estimatedCompletion">Achèvement estimé</label>
-                            <input type="date" id="estimatedCompletion" name="estimated_completion" value="<?= htmlspecialchars($_POST['estimated_completion'] ?? '') ?>">
+                            <input type="date" id="estimatedCompletion" name="estimated_completion" value="<?= htmlspecialchars($form_data['estimated_completion'] ?? '') ?>">
                         </div>
 
                         <div class="form-group">
                             <label for="saleStatus">Statut de vente</label>
                             <select id="saleStatus" name="sale_status">
-                                <option value="available" <?= ($_POST['sale_status'] ?? 'available') === 'available' ? 'selected' : '' ?>>Disponible</option>
-                                <option value="under_contract" <?= ($_POST['sale_status'] ?? '') === 'under_contract' ? 'selected' : '' ?>>Sous contrat</option>
-                                <option value="sold" <?= ($_POST['sale_status'] ?? '') === 'sold' ? 'selected' : '' ?>>Vendu</option>
-                                <option value="on_hold" <?= ($_POST['sale_status'] ?? '') === 'on_hold' ? 'selected' : '' ?>>En attente</option>
+                                <option value="available" <?= ($form_data['sale_status'] ?? 'available') === 'available' ? 'selected' : '' ?>>Disponible</option>
+                                <option value="under_contract" <?= ($form_data['sale_status'] ?? '') === 'under_contract' ? 'selected' : '' ?>>Sous contrat</option>
+                                <option value="sold" <?= ($form_data['sale_status'] ?? '') === 'sold' ? 'selected' : '' ?>>Vendu</option>
+                                <option value="on_hold" <?= ($form_data['sale_status'] ?? '') === 'on_hold' ? 'selected' : '' ?>>En attente</option>
                             </select>
                         </div>
                     </div>
 
-                    <div class="file-upload-section">
-                        <h3>Images de la propriété</h3>
+                    <!-- Existing Images Section -->
+                    <?php if (!empty($existing_images)): ?>
+                    <div class="media-section">
+                        <h3>Images existantes</h3>
+                        <div class="existing-media">
+                            <h4>Cochez les images à supprimer:</h4>
+                            <div class="existing-media-grid">
+                                <?php foreach ($existing_images as $image): ?>
+                                <div class="existing-media-item">
+                                    <img src="<?= htmlspecialchars($image['file_path']) ?>" alt="<?= htmlspecialchars($image['alt_text']) ?>">
+                                    <div class="file-info">
+                                        <?= htmlspecialchars($image['alt_text'] ?: $image['file_name']) ?>
+                                        <?php if ($image['is_primary']): ?>
+                                        <br><strong style="color: var(--success-color);">Image principale</strong>
+                                        <?php endif; ?>
+                                    </div>
+                                    <input type="checkbox" name="delete_images[]" value="<?= $image['image_id'] ?>" class="delete-media-checkbox">
+                                    <label class="delete-media-label">Supprimer</label>
+                                </div>
+                                <?php endforeach; ?>
+                            </div>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+
+                    <!-- Existing Videos Section -->
+                    <?php if (!empty($existing_videos)): ?>
+                    <div class="media-section">
+                        <h3>Vidéos existantes</h3>
+                        <div class="existing-media">
+                            <h4>Cochez les vidéos à supprimer:</h4>
+                            <div class="existing-media-grid">
+                                <?php foreach ($existing_videos as $video): ?>
+                                <div class="existing-media-item">
+                                    <video src="<?= htmlspecialchars($video['file_path']) ?>" muted></video>
+                                    <div class="file-info">
+                                        <?= htmlspecialchars($video['title'] ?: $video['file_name']) ?>
+                                    </div>
+                                    <input type="checkbox" name="delete_videos[]" value="<?= $video['video_id'] ?>" class="delete-media-checkbox">
+                                    <label class="delete-media-label">Supprimer</label>
+                                </div>
+                                <?php endforeach; ?>
+                            </div>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+
+                    <div class="media-section">
+                        <h3>Ajouter de nouvelles images</h3>
                         <div class="file-upload-area" onclick="document.getElementById('imageInput').click()">
                             <div style="font-size: 3rem; color: var(--accent-text); margin-bottom: 15px;">📷</div>
-                            <p style="color: var(--secondary-text); font-weight: 600;">Cliquer pour sélectionner les images</p>
+                            <p style="color: var(--secondary-text); font-weight: 600;">Cliquer pour sélectionner de nouvelles images</p>
                             <p style="font-size: 12px; color: var(--accent-text);">JPG, PNG, GIF (Max 5MB chacune) - Sélection multiple possible</p>
                         </div>
                         <input type="file" id="imageInput" name="images[]" multiple accept="image/*" style="display: none;" onchange="previewImages(this)">
@@ -670,11 +925,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                         <div id="imageCount" class="file-count"></div>
                     </div>
 
-                    <div class="file-upload-section">
-                        <h3>Vidéos de la propriété</h3>
+                    <div class="media-section">
+                        <h3>Ajouter de nouvelles vidéos</h3>
                         <div class="file-upload-area" onclick="document.getElementById('videoInput').click()">
                             <div style="font-size: 3rem; color: var(--accent-text); margin-bottom: 15px;">🎥</div>
-                            <p style="color: var(--secondary-text); font-weight: 600;">Cliquer pour sélectionner les vidéos</p>
+                            <p style="color: var(--secondary-text); font-weight: 600;">Cliquer pour sélectionner de nouvelles vidéos</p>
                             <p style="font-size: 12px; color: var(--accent-text);">MP4, MOV, AVI (Max 50MB chacune) - Sélection multiple possible</p>
                         </div>
                         <input type="file" id="videoInput" name="videos[]" multiple accept="video/*" style="display: none;" onchange="previewVideos(this)">
@@ -683,8 +938,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     </div>
 
                     <div class="btn-container">
-                        <button type="button" class="btn btn-secondary" onclick="window.history.back()">Annuler</button>
-                        <button type="submit" class="btn btn-success">Créer la propriété</button>
+                        <a href="properties.php" class="btn btn-secondary">Annuler</a>
+                        <button type="submit" class="btn btn-success">Mettre à jour la propriété</button>
                     </div>
                 </form>
             </div>
@@ -709,7 +964,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 return;
             }
             
-            counter.innerHTML = `✓ ${selectedImages.length} image(s) sélectionnée(s)`;
+            counter.innerHTML = `✓ ${selectedImages.length} nouvelle(s) image(s) sélectionnée(s)`;
             counter.classList.add('show', 'success');
             
             selectedImages.forEach((file, index) => {
@@ -750,7 +1005,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 return;
             }
             
-            counter.innerHTML = `✓ ${selectedVideos.length} vidéo(s) sélectionnée(s)`;
+            counter.innerHTML = `✓ ${selectedVideos.length} nouvelle(s) vidéo(s) sélectionnée(s)`;
             counter.classList.add('show', 'success');
             
             selectedVideos.forEach((file, index) => {
@@ -818,7 +1073,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 return;
             }
             
-            counter.innerHTML = `✓ ${selectedImages.length} image(s) sélectionnée(s)`;
+            counter.innerHTML = `✓ ${selectedImages.length} nouvelle(s) image(s) sélectionnée(s)`;
             counter.classList.add('show', 'success');
             
             selectedImages.forEach((file, index) => {
@@ -852,7 +1107,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 return;
             }
             
-            counter.innerHTML = `✓ ${selectedVideos.length} vidéo(s) sélectionnée(s)`;
+            counter.innerHTML = `✓ ${selectedVideos.length} nouvelle(s) vidéo(s) sélectionnée(s)`;
             counter.classList.add('show', 'success');
             
             selectedVideos.forEach((file, index) => {
@@ -871,7 +1126,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             });
         }
         
-        // Form validation and submission
+        // Form validation and feedback
         document.addEventListener('DOMContentLoaded', function() {
             const form = document.querySelector('form');
             const constructionStatusSelect = document.getElementById('constructionStatus');
@@ -886,40 +1141,49 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     return false;
                 }
                 
-                // Additional validation for required fields
-                const requiredFields = [
-                    'property_code', 'description', 'address_line1', 
-                    'city', 'state', 'postal_code', 'bedrooms', 'bathrooms'
-                ];
+                // Show confirmation for deletions
+                const deleteImages = document.querySelectorAll('input[name="delete_images[]"]:checked');
+                const deleteVideos = document.querySelectorAll('input[name="delete_videos[]"]:checked');
                 
-                for (let field of requiredFields) {
-                    const element = document.getElementsByName(field)[0];
-                    if (!element.value.trim()) {
-                        alert(`Le champ ${field} est requis!`);
-                        element.focus();
+                if (deleteImages.length > 0 || deleteVideos.length > 0) {
+                    const totalDeletions = deleteImages.length + deleteVideos.length;
+                    if (!confirm(`Êtes-vous sûr de vouloir supprimer ${totalDeletions} fichier(s)? Cette action est irréversible.`)) {
                         e.preventDefault();
                         return false;
                     }
                 }
             });
             
-            // Auto-hide messages after 5 seconds
+            // Auto-hide messages
             const successMessage = document.querySelector('.success-message');
             const errorMessage = document.querySelector('.error-message');
             
             if (successMessage) {
                 setTimeout(() => {
-                    successMessage.style.opacity = '0';
-                    setTimeout(() => successMessage.style.display = 'none', 300);
+                    successMessage.style.display = 'none';
                 }, 5000);
             }
             
             if (errorMessage) {
                 setTimeout(() => {
-                    errorMessage.style.opacity = '0';
-                    setTimeout(() => errorMessage.style.display = 'none', 300);
+                    errorMessage.style.display = 'none';
                 }, 5000);
             }
+            
+            // Highlight selected files for deletion
+            const deleteCheckboxes = document.querySelectorAll('.delete-media-checkbox');
+            deleteCheckboxes.forEach(checkbox => {
+                checkbox.addEventListener('change', function() {
+                    const item = this.closest('.existing-media-item');
+                    if (this.checked) {
+                        item.style.border = '3px solid var(--danger-color)';
+                        item.style.opacity = '0.7';
+                    } else {
+                        item.style.border = '2px solid var(--accent-bg)';
+                        item.style.opacity = '1';
+                    }
+                });
+            });
         });
     </script>
 </body>
